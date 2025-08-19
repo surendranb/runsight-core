@@ -1,0 +1,45 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_FLAGS = "--production=false"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Redirect rules for SPA and auth callback
+[[redirects]]
+  from = "/auth/callback"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' /.netlify/functions/*"
+
+[dev]
+  command = "npm run dev"
+  port = 3000
+  publish = "dist"
+
+# Environment variables needed (set in Netlify dashboard):
+# STRAVA_CLIENT_ID - Your Strava app client ID
+# STRAVA_CLIENT_SECRET - Your Strava app client secret (SECURE - server only)
+# STRAVA_REDIRECT_URI - Your callback URL (e.g., https://your-app.netlify.app/auth/callback)
+# SUPABASE_URL - Your Supabase project URL
+# SUPABASE_SERVICE_KEY - Your Supabase service role key (SECURE - server only)
+# OPENWEATHER_API_KEY - Your OpenWeatherMap API key (SECURE - server only)
