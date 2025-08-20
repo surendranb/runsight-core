@@ -1,6 +1,6 @@
 // src/components/NavigationBar.tsx
 import React, { useState } from 'react';
-import { Menu, X, Activity, BarChart3, Target, Settings as SettingsIcon, RefreshCw, HelpCircle, Zap } from 'lucide-react';
+import { Menu, X, Activity, BarChart3, Target, Settings as SettingsIcon, RefreshCw, HelpCircle, Zap, Github } from 'lucide-react';
 import { StandardDropdown } from './common/StandardButton';
 import { Heading } from './common/VisualHierarchy';
 
@@ -121,6 +121,20 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                   </button>
                 );
               })}
+              <a
+                href="https://github.com/surendranb/runsight-core"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center min-h-[36px] min-w-[36px] px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 transition-all duration-200 select-none"
+                title="Star on GitHub"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation'
+                }}
+              >
+                <Github className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span className="whitespace-nowrap">GitHub</span>
+              </a>
             </div>
           </div>
 
@@ -230,6 +244,19 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                   </button>
                 );
               })}
+              <a
+                href="https://github.com/surendranb/runsight-core"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center w-full min-h-[48px] px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 select-none"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation'
+                }}
+              >
+                <Github className="w-5 h-5 mr-3 flex-shrink-0" />
+                <span className="flex-1 text-left">Star on GitHub</span>
+              </a>
               
               {/* Mobile Sync Controls */}
               {onSyncData && (
