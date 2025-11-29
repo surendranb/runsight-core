@@ -1,9 +1,8 @@
-// netlify/functions/auth-strava.js - Secure Cookie-based Authentication
+// netlify/functions/auth-strava.js - Secure Cookie-based Authentication, Decoupled from DB
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
 const fetch = require('node-fetch');
-// const { ensureSchemaIsReady } = require('./lib/db-setup'); // REMOVED: Silent setup is no longer used
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -51,9 +50,6 @@ exports.handler = async (event, context) => {
   });
 
   try {
-    // The silent DB setup call has been removed from here.
-    // The new flow requires the frontend to detect missing tables and guide the user.
-
     if (event.httpMethod === 'GET') {
       const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&approval_prompt=force&scope=read,activity:read_all`;
       return { statusCode: 200, headers, body: JSON.stringify({ authUrl }) };
@@ -62,7 +58,7 @@ exports.handler = async (event, context) => {
     if (event.httpMethod === 'POST') {
       const { code } = JSON.parse(event.body);
       if (!code) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'MISSING_CODE', message: 'Authorization code is required' }) };
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'MISSING_CODE' }) };
       }
 
       console.log('[auth-strava] Exchanging code for Strava tokens...');
@@ -86,8 +82,8 @@ exports.handler = async (event, context) => {
       
       console.log(`[auth-strava] Strava token exchange successful for user ${athlete.id}`);
 
+      // --- Robust "Find or Create" Supabase User Logic ---
       let supabaseUser;
-      
       const { data: users, error: findError } = await supabaseAdmin.auth.admin.listUsers();
       if (findError) throw findError;
       
@@ -110,45 +106,26 @@ exports.handler = async (event, context) => {
 
       const supabaseUid = supabaseUser.id;
       
-      const { error: upsertTokenError } = await supabaseAdmin
-        .from('user_tokens')
-        .upsert({
-          user_id: supabaseUid,
-          strava_user_id: athlete.id,
-          strava_access_token: access_token,
-          strava_refresh_token: refresh_token,
-          strava_expires_at: expires_at,
-          user_name: `${athlete.firstname || ''} ${athlete.lastname || ''}`.trim(),
-          user_email: athlete.email,
-        }, { onConflict: 'user_id' });
-
-      if (upsertTokenError) throw upsertTokenError;
-
-      const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
-        type: "magiclink",
-        email: supabaseUser.email,
-      });
-
-      if (tokenError || !tokenData?.properties?.access_token) {
-        throw new Error('Failed to generate Supabase session token.');
-      }
-      
-      const supabaseAccessToken = tokenData.properties.access_token;
-      
+      // --- Generate Session JWT with Strava Tokens included ---
+      // This removes the need to store them in a separate 'user_tokens' table for the sync process.
       const tokenPayload = { 
         sub: supabaseUid,
-        supabase_access_token: supabaseAccessToken,
         name: supabaseUser.user_metadata.name,
-        email: supabaseUser.email
+        email: supabaseUser.email,
+        strava_access_token: access_token,
+        strava_refresh_token: refresh_token,
+        strava_expires_at: expires_at,
+        strava_user_id: athlete.id,
       };
-      const sessionToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1h' });
+      const sessionToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '8h' }); // Increased expiry for long syncs
 
+      console.log(`[auth-strava] Generating session token for ${supabaseUid}...`);
       const sessionCookie = cookie.serialize('sb-session', sessionToken, {
         httpOnly: true,
         secure: NODE_ENV === 'production',
         sameSite: 'Lax',
         path: '/',
-        maxAge: 60 * 60 * 1,
+        maxAge: 60 * 60 * 8, // 8 hours
       });
 
       return {
@@ -156,7 +133,7 @@ exports.handler = async (event, context) => {
         headers: {
           ...headers,
           'Set-Cookie': sessionCookie,
-          'Location': `${FRONTEND_URL}/auth/callback?status=success`,
+          'Location': `${FRONTEND_URL}`, // Redirect to the main app page
         },
         body: '',
       };

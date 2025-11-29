@@ -4,20 +4,18 @@
 
 -- From migration: 20250609100000_fresh_start_simple_schema.sql
 -- =================================================================
--- Fresh Start: Simple, Robust Schema
--- Drop complex tables and start with a single, simple runs table
-
--- Drop existing complex tables
+-- Drop existing complex tables if they exist
 DROP TABLE IF EXISTS public.run_splits CASCADE;
 DROP TABLE IF EXISTS public.enriched_runs CASCADE;
 DROP TABLE IF EXISTS public.activities CASCADE;
 DROP TABLE IF EXISTS public.weather CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
+DROP TABLE IF EXISTS public.user_tokens CASCADE; -- Removing as it is no longer needed
 
--- Drop existing functions
+-- Drop existing functions if they exist
 DROP FUNCTION IF EXISTS public.generate_strava_user_uuid(bigint);
 
--- Create simple runs table
+-- Create runs table
 CREATE TABLE public.runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -46,86 +44,23 @@ CREATE INDEX idx_runs_user_id ON public.runs(user_id);
 CREATE INDEX idx_runs_strava_id ON public.runs(strava_id);
 CREATE INDEX idx_runs_start_date ON public.runs(start_date DESC);
 
--- Simple permissions - no RLS initially
-GRANT ALL ON public.runs TO authenticated;
-GRANT ALL ON public.runs TO anon;
-
--- Grant usage on schema
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA public TO anon;
-
--- Comment on table
-COMMENT ON TABLE public.runs IS 'Simple runs table with all data in one place - weather and strava data stored as JSONB';
-
--- From migration: 20250609100001_recreate_generate_strava_user_uuid_function.sql
--- =================================================================
--- Recreate the function to generate a deterministic UUID for Strava users
--- This ensures auth-strava.js can correctly map Strava users to Supabase auth users.
-
-CREATE OR REPLACE FUNCTION public.generate_strava_user_uuid(strava_id bigint)
-RETURNS uuid
-LANGUAGE sql
-IMMUTABLE
-AS $$
-  SELECT uuid_generate_v5(
-    '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
-    'strava_user_' || strava_id::text
-  );
-$$;
-
--- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.generate_strava_user_uuid TO authenticated;
-GRANT EXECUTE ON FUNCTION public.generate_strava_user_uuid TO anon;
-
-COMMENT ON FUNCTION public.generate_strava_user_uuid IS 'Generates a deterministic UUID v5 for a given Strava user ID, ensuring consistent user mapping.';
-
 -- From migration: 20250609110000_add_proper_rls_security.sql
 -- =================================================================
--- Add proper Row Level Security to ensure users can only see their own data
--- This is CRITICAL for multi-user security
-
--- Enable RLS on the runs table
 ALTER TABLE public.runs ENABLE ROW LEVEL SECURITY;
 
--- Remove the overly permissive grants
-REVOKE ALL ON public.runs FROM anon;
-REVOKE ALL ON public.runs FROM authenticated;
+CREATE POLICY "Users can only see their own runs" ON public.runs FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can only insert their own runs" ON public.runs FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can only update their own runs" ON public.runs FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can only delete their own runs" ON public.runs FOR DELETE USING (auth.uid() = user_id);
 
--- Create secure RLS policies that ensure users can only access their own data
-CREATE POLICY "Users can only see their own runs" ON public.runs
-  FOR SELECT 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can only insert their own runs" ON public.runs
-  FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can only update their own runs" ON public.runs
-  FOR UPDATE 
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can only delete their own runs" ON public.runs
-  FOR DELETE 
-  USING (auth.uid() = user_id);
-
--- Grant specific permissions to authenticated users only
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.runs TO authenticated;
-
--- Add a comment explaining the security model
-COMMENT ON TABLE public.runs IS 'Runs table with RLS enabled - users can only access their own data via auth.uid() = user_id';
 
 -- From migration: 20250610200000_add_geocoding_columns.sql
 -- =================================================================
--- Add city, state, and country columns to the runs table
-ALTER TABLE public.runs
-ADD COLUMN city TEXT NULL,
-ADD COLUMN state TEXT NULL,
-ADD COLUMN country TEXT NULL;
+ALTER TABLE public.runs ADD COLUMN IF NOT EXISTS city TEXT NULL, ADD COLUMN IF NOT EXISTS state TEXT NULL, ADD COLUMN IF NOT EXISTS country TEXT NULL;
 
 -- From migration: 20250717000000_create_goals_table.sql
 -- =================================================================
--- Create goals table for user running goals
 CREATE TABLE IF NOT EXISTS goals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -141,202 +76,62 @@ CREATE TABLE IF NOT EXISTS goals (
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'paused', 'failed')),
     priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
     category TEXT DEFAULT 'annual' CHECK (category IN ('annual', 'monthly', 'weekly', 'race_specific')),
-    additional_details JSONB DEFAULT '{}'::jsonb,
-    CONSTRAINT goals_user_id_idx UNIQUE (user_id, id)
+    additional_details JSONB DEFAULT '{}'::jsonb
 );
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS goals_user_id_idx ON goals(user_id);
-CREATE INDEX IF NOT EXISTS goals_status_idx ON goals(status);
-CREATE INDEX IF NOT EXISTS goals_type_idx ON goals(type);
-CREATE INDEX IF NOT EXISTS goals_target_date_idx ON goals(target_date);
-
--- Enable Row Level Security
 ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
-
--- RLS Policies
-CREATE POLICY "Users can view their own goals" ON goals
-    FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own goals" ON goals
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own goals" ON goals
-    FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own goals" ON goals
-    FOR DELETE USING (auth.uid() = user_id);
-
--- Function to automatically update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_goals_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to automatically update updated_at
-CREATE TRIGGER update_goals_updated_at_trigger
-    BEFORE UPDATE ON goals
-    FOR EACH ROW
-    EXECUTE FUNCTION update_goals_updated_at();
-
--- Grant permissions
+CREATE POLICY "Users can view their own goals" ON goals FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own goals" ON goals FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own goals" ON goals FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own goals" ON goals FOR DELETE USING (auth.uid() = user_id);
 GRANT ALL ON goals TO authenticated;
-GRANT ALL ON goals TO service_role;
 
 -- From migration: 20250812000000_add_advanced_training_metrics.sql
 -- =================================================================
--- Add advanced training metrics infrastructure
 ALTER TABLE public.runs ADD COLUMN IF NOT EXISTS advanced_metrics JSONB;
 
 CREATE TABLE IF NOT EXISTS public.user_training_profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  resting_heart_rate integer CHECK (resting_heart_rate > 30 AND resting_heart_rate < 100),
-  max_heart_rate integer CHECK (max_heart_rate > 120 AND max_heart_rate < 250),
-  estimated_weight real CHECK (estimated_weight > 30 AND estimated_weight < 200),
-  current_vo2_max real CHECK (current_vo2_max > 20 AND current_vo2_max < 90),
-  current_ctl real CHECK (current_ctl >= 0),
-  current_atl real CHECK (current_atl >= 0),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+  resting_heart_rate integer,
+  max_heart_rate integer,
+  estimated_weight real,
+  current_vo2_max real,
+  current_ctl real,
+  current_atl real,
   current_tsb real,
-  optimal_temperature real CHECK (optimal_temperature > -20 AND optimal_temperature < 50),
-  heat_tolerance_level text CHECK (heat_tolerance_level IN ('low', 'medium', 'high')),
+  optimal_temperature real,
+  heat_tolerance_level text,
   heart_rate_zones jsonb,
   pace_zones jsonb,
   last_calculated timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  UNIQUE(user_id)
+  updated_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.daily_training_load (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   date date NOT NULL,
-  total_distance real DEFAULT 0 CHECK (total_distance >= 0),
-  total_trimp real DEFAULT 0 CHECK (total_trimp >= 0),
-  total_moving_time integer DEFAULT 0 CHECK (total_moving_time >= 0),
-  run_count integer DEFAULT 0 CHECK (run_count >= 0),
+  total_distance real DEFAULT 0,
+  total_trimp real DEFAULT 0,
+  total_moving_time integer DEFAULT 0,
+  run_count integer DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE(user_id, date)
 );
 
-CREATE INDEX IF NOT EXISTS idx_runs_advanced_metrics ON public.runs USING GIN (advanced_metrics);
-CREATE INDEX IF NOT EXISTS idx_user_training_profiles_user_id ON public.user_training_profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_training_profiles_last_calculated ON public.user_training_profiles(last_calculated DESC);
-CREATE INDEX IF NOT EXISTS idx_daily_training_load_user_date ON public.daily_training_load(user_id, date DESC);
-CREATE INDEX IF NOT EXISTS idx_daily_training_load_date_range ON public.daily_training_load(user_id, date) WHERE date >= CURRENT_DATE - INTERVAL '42 days';
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.user_training_load_summary AS
-SELECT 
-  user_id, date, total_distance, total_trimp, total_moving_time, run_count,
-  AVG(total_distance) OVER (PARTITION BY user_id ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as acute_distance_load,
-  AVG(total_trimp) OVER (PARTITION BY user_id ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as acute_trimp_load,
-  AVG(total_distance) OVER (PARTITION BY user_id ORDER BY date ROWS BETWEEN 27 PRECEDING AND CURRENT ROW) as chronic_distance_load,
-  AVG(total_trimp) OVER (PARTITION BY user_id ORDER BY date ROWS BETWEEN 27 PRECEDING AND CURRENT ROW) as chronic_trimp_load
-FROM public.daily_training_load
-WHERE date >= CURRENT_DATE - INTERVAL '42 days';
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_training_load_summary_user_date ON public.user_training_load_summary(user_id, date);
-
-CREATE OR REPLACE FUNCTION refresh_training_load_summary()
-RETURNS void AS $$
-BEGIN
-  REFRESH MATERIALIZED VIEW CONCURRENTLY public.user_training_load_summary;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION update_daily_training_load()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.daily_training_load (user_id, date, total_distance, total_trimp, total_moving_time, run_count)
-  VALUES (NEW.user_id, DATE(NEW.start_date_local), NEW.distance, COALESCE((NEW.advanced_metrics->>'trimp')::real, 0), NEW.moving_time, 1)
-  ON CONFLICT (user_id, date) 
-  DO UPDATE SET
-    total_distance = daily_training_load.total_distance + NEW.distance - COALESCE(OLD.distance, 0),
-    total_trimp = daily_training_load.total_trimp + COALESCE((NEW.advanced_metrics->>'trimp')::real, 0) - COALESCE((OLD.advanced_metrics->>'trimp')::real, 0),
-    total_moving_time = daily_training_load.total_moving_time + NEW.moving_time - COALESCE(OLD.moving_time, 0),
-    run_count = CASE WHEN TG_OP = 'INSERT' THEN daily_training_load.run_count + 1 ELSE daily_training_load.run_count END,
-    updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION handle_run_deletion()
-RETURNS TRIGGER AS $$
-BEGIN
-  UPDATE public.daily_training_load 
-  SET 
-    total_distance = total_distance - OLD.distance,
-    total_trimp = total_trimp - COALESCE((OLD.advanced_metrics->>'trimp')::real, 0),
-    total_moving_time = total_moving_time - OLD.moving_time,
-    run_count = run_count - 1,
-    updated_at = now()
-  WHERE user_id = OLD.user_id AND date = DATE(OLD.start_date_local);
-  
-  DELETE FROM public.daily_training_load 
-  WHERE user_id = OLD.user_id AND date = DATE(OLD.start_date_local) AND run_count <= 0;
-  RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trigger_update_daily_training_load ON public.runs;
-CREATE TRIGGER trigger_update_daily_training_load AFTER INSERT OR UPDATE ON public.runs FOR EACH ROW EXECUTE FUNCTION update_daily_training_load();
-DROP TRIGGER IF EXISTS trigger_handle_run_deletion ON public.runs;
-CREATE TRIGGER trigger_handle_run_deletion AFTER DELETE ON public.runs FOR EACH ROW EXECUTE FUNCTION handle_run_deletion();
-
 ALTER TABLE public.user_training_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_training_load ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Users can view their own training profile" ON public.user_training_profiles FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own training profile" ON public.user_training_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own training profile" ON public.user_training_profiles FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own training profile" ON public.user_training_profiles FOR DELETE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view their own training load data" ON public.daily_training_load FOR SELECT USING (auth.uid() = user_id);
-
 GRANT ALL ON public.user_training_profiles TO authenticated;
-GRANT ALL ON public.daily_training_load TO authenticated;
-GRANT SELECT ON public.user_training_load_summary TO authenticated;
 
--- From migration: 20251128000000_fix_daily_training_load_rls.sql
--- =================================================================
 ALTER TABLE public.daily_training_load ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view their own training load" ON public.daily_training_load FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own daily training load" ON public.daily_training_load FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own daily training load" ON public.daily_training_load FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own daily training load" ON public.daily_training_load FOR DELETE USING (auth.uid() = user_id);
-REVOKE ALL ON public.daily_training_load FROM authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.daily_training_load TO authenticated;
-GRANT SELECT ON public.user_training_load_summary TO authenticated;
-
--- From migration: 20251128000001_add_user_tokens_rls.sql
--- =================================================================
--- NOTE: The user_tokens table is implicitly created by Supabase Auth for external providers.
--- We are ensuring RLS is enabled and policies are set.
--- First, add the user_id column if it doesn't exist.
--- This might fail if the table doesn't exist yet, but it will be created on first login.
--- This script should be run after the first user has logged in to ensure the table exists.
--- For a guided setup, this is fine. The user will be prompted to run this.
-ALTER TABLE public.user_tokens ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE public.user_tokens ADD CONSTRAINT unique_user_id UNIQUE (user_id);
-ALTER TABLE public.user_tokens ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can only see their own Strava tokens" ON public.user_tokens FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert their own Strava tokens" ON public.user_tokens FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update their own Strava tokens" ON public.user_tokens FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can delete their own Strava tokens" ON public.user_tokens FOR DELETE USING (auth.uid() = user_id);
-REVOKE ALL ON public.user_tokens FROM authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_tokens TO authenticated;
-
--- From migration: 20251129000000_create_execute_sql_function.sql
--- =================================================================
--- This function is no longer needed with the "Copy/Paste" setup flow.
--- We are commenting it out to keep the setup script clean and simple.
---
--- CREATE OR REPLACE FUNCTION execute_sql(sql_string TEXT)
--- RETURNS void AS $$
--- BEGIN
---   EXECUTE sql_string;
--- END;
--- $$ LANGUAGE plpgsql;
--- GRANT EXECUTE ON FUNCTION execute_sql(TEXT) TO service_role;
--- REVOKE EXECUTE ON FUNCTION execute_sql(TEXT) FROM anon, authenticated;
+GRANT ALL ON public.daily_training_load TO authenticated;
