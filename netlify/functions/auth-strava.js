@@ -1,9 +1,9 @@
-// netlify/functions/auth-strava.js - Secure Cookie-based Authentication with Silent DB Setup
+// netlify/functions/auth-strava.js - Secure Cookie-based Authentication
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
 const fetch = require('node-fetch');
-const { ensureSchemaIsReady } = require('./lib/db-setup'); // Import the new DB setup helper
+// const { ensureSchemaIsReady } = require('./lib/db-setup'); // REMOVED: Silent setup is no longer used
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -51,9 +51,8 @@ exports.handler = async (event, context) => {
   });
 
   try {
-    // SILENT DB SETUP: Ensure the database schema is ready before proceeding.
-    // This is the first action after confirming env vars and creating the admin client.
-    await ensureSchemaIsReady(supabaseAdmin);
+    // The silent DB setup call has been removed from here.
+    // The new flow requires the frontend to detect missing tables and guide the user.
 
     if (event.httpMethod === 'GET') {
       const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&approval_prompt=force&scope=read,activity:read_all`;
@@ -66,7 +65,7 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'MISSING_CODE', message: 'Authorization code is required' }) };
       }
 
-      console.log('[auth-strava] Step 1: Exchanging code for Strava tokens...');
+      console.log('[auth-strava] Exchanging code for Strava tokens...');
       const stravaTokenResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,21 +84,18 @@ exports.handler = async (event, context) => {
       const stravaData = await stravaTokenResponse.json();
       const { athlete, access_token, refresh_token, expires_at } = stravaData;
       
-      console.log(`[auth-strava] Step 1 successful for Strava user ${athlete.id}`);
+      console.log(`[auth-strava] Strava token exchange successful for user ${athlete.id}`);
 
       let supabaseUser;
       
-      console.log(`[auth-strava] Step 2: Finding Supabase user for Strava ID ${athlete.id}...`);
       const { data: users, error: findError } = await supabaseAdmin.auth.admin.listUsers();
       if (findError) throw findError;
       
       const existingUser = users.users.find(u => u.user_metadata?.strava_id === athlete.id);
 
       if (existingUser) {
-        console.log(`[auth-strava] Found existing Supabase user: ${existingUser.id}`);
         supabaseUser = existingUser;
       } else {
-        console.log(`[auth-strava] No existing user found. Creating new Supabase user...`);
         const { data: newUserResponse, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: athlete.email || `${athlete.id}@strava.local`,
           email_confirm: true,
@@ -110,12 +106,10 @@ exports.handler = async (event, context) => {
         });
         if (createError) throw createError;
         supabaseUser = newUserResponse.user;
-        console.log(`[auth-strava] Created new Supabase user: ${supabaseUser.id}`);
       }
 
       const supabaseUid = supabaseUser.id;
       
-      console.log(`[auth-strava] Step 3: Storing/updating Strava tokens for Supabase user ${supabaseUid}...`);
       const { error: upsertTokenError } = await supabaseAdmin
         .from('user_tokens')
         .upsert({
@@ -130,7 +124,6 @@ exports.handler = async (event, context) => {
 
       if (upsertTokenError) throw upsertTokenError;
 
-      console.log(`[auth-strava] Step 4: Generating session token for ${supabaseUid}...`);
       const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
         email: supabaseUser.email,
@@ -150,7 +143,6 @@ exports.handler = async (event, context) => {
       };
       const sessionToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1h' });
 
-      console.log(`[auth-strava] Step 5: Setting secure cookie and redirecting...`);
       const sessionCookie = cookie.serialize('sb-session', sessionToken, {
         httpOnly: true,
         secure: NODE_ENV === 'production',
