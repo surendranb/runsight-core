@@ -1,8 +1,9 @@
-// netlify/functions/auth-strava.js - Secure Cookie-based Authentication
+// netlify/functions/auth-strava.js - Secure Cookie-based Authentication with Silent DB Setup
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
 const fetch = require('node-fetch');
+const { ensureSchemaIsReady } = require('./lib/db-setup'); // Import the new DB setup helper
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -50,6 +51,10 @@ exports.handler = async (event, context) => {
   });
 
   try {
+    // SILENT DB SETUP: Ensure the database schema is ready before proceeding.
+    // This is the first action after confirming env vars and creating the admin client.
+    await ensureSchemaIsReady(supabaseAdmin);
+
     if (event.httpMethod === 'GET') {
       const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT_URI)}&approval_prompt=force&scope=read,activity:read_all`;
       return { statusCode: 200, headers, body: JSON.stringify({ authUrl }) };
@@ -82,7 +87,6 @@ exports.handler = async (event, context) => {
       
       console.log(`[auth-strava] Step 1 successful for Strava user ${athlete.id}`);
 
-      // --- Step 2: Robust "Find or Create" Supabase User Logic ---
       let supabaseUser;
       
       console.log(`[auth-strava] Step 2: Finding Supabase user for Strava ID ${athlete.id}...`);
@@ -105,10 +109,7 @@ exports.handler = async (event, context) => {
           },
         });
         if (createError) throw createError;
-        
-        // FIX: Correctly access the nested user object from the response
-        supabaseUser = newUserResponse.user; 
-        
+        supabaseUser = newUserResponse.user;
         console.log(`[auth-strava] Created new Supabase user: ${supabaseUser.id}`);
       }
 
