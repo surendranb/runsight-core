@@ -33,20 +33,20 @@
     # Refined Content-Security-Policy to address XSS (FINDING-05)
     # This is a strict policy. If the app breaks, it likely needs fine-tuning for specific scripts/styles.
     # Aim is to remove 'unsafe-inline' and 'unsafe-eval' where possible.
-    Content-Security-Policy = "
-      default-src 'self';
-      script-src 'self' https://*.netlify.app; # Allow scripts from self and Netlify functions. Avoid 'unsafe-inline' and 'unsafe-eval'.
-      style-src 'self' 'unsafe-inline'; # 'unsafe-inline' often required for CSS-in-JS or dynamic styles. Aim to replace with nonces/hashes.
-      img-src 'self' data: https:; # Allow self, data URIs, and HTTPS images (e.g., Strava profile pics)
-      connect-src 'self' /.netlify/functions/* https://*.supabase.co https://*.supabase.io https://api.strava.com https://*.strava.com; # Allow Supabase and Strava APIs
-      font-src 'self' https: data:; # Allow fonts from self, HTTPS, and data URIs
-      object-src 'none'; # No plugins
-      base-uri 'self'; # Restrict base URL
-      form-action 'self' https://www.strava.com; # Allow forms to submit to self and Strava
-      frame-ancestors 'self'; # Prevent clickjacking
-      frame-src 'self' https://www.youtube.com; # If embedded videos, adjust
-      worker-src 'self' blob:; # Allow web workers, often needed by build tools
-    "
+    Content-Security-Policy = [
+      "default-src 'self'",
+      "script-src 'self' https://*.netlify.app",
+      "style-src 'self' 'unsafe-inline'", # 'unsafe-inline' often required for CSS-in-JS or dynamic styles. Aim to replace with nonces/hashes.
+      "img-src 'self' data: https:", # Allow self, data URIs, and HTTPS images (e.g., Strava profile pics)
+      "connect-src 'self' /.netlify/functions/* https://*.supabase.co https://*.supabase.io https://api.strava.com https://*.strava.com", # Allow Supabase and Strava APIs
+      "font-src 'self' https: data:", # Allow fonts from self, HTTPS, and data URIs
+      "object-src 'none'", # No plugins
+      "base-uri 'self'", # Restrict base URL
+      "form-action 'self' https://www.strava.com", # Allow forms to submit to self and Strava
+      "frame-ancestors 'self'", # Prevent clickjacking
+      "frame-src 'self' https://www.youtube.com", # If embedded videos, adjust
+      "worker-src 'self' blob:" # Allow web workers, often needed by build tools
+    ]
 
 [dev]
   command = "npm run dev"
