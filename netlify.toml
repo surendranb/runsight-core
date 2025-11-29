@@ -1,6 +1,7 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  branch = "main" # Explicitly set the production branch
 
 [build.environment]
   NODE_VERSION = "18"
@@ -51,13 +52,3 @@
   command = "npm run dev"
   port = 3000
   publish = "dist"
-
-# Environment variables needed (set in Netlify dashboard):
-# STRAVA_CLIENT_ID - Your Strava app client ID
-# STRAVA_CLIENT_SECRET - Your Strava app client secret (SECURE - server only)
-# VITE_STRAVA_REDIRECT_URI - Your callback URL (e.g., https://your-app.netlify.app/auth/callback)
-# VITE_FRONTEND_URL - The base URL of your frontend (e.g., https://your-app.netlify.app)
-# VITE_SUPABASE_URL - Your Supabase project URL
-# SUPABASE_SERVICE_KEY - Your Supabase service role key (SECURE - server only)
-# OPENWEATHER_API_KEY - Your OpenWeatherMap API key (SECURE - server only)
-# JWT_SECRET - CRITICAL: A strong, random key for signing JWTs. (SECURE - server only)
