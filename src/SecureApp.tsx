@@ -14,7 +14,7 @@ import { useToast } from './components/common/ErrorToast';
 import { EnrichedRun, RunStats } from './types';
 import { apiClient } from './lib/secure-api-client';
 import { productionErrorHandler } from './lib/production-error-handler';
-import { SetupGuide } from './components/common/SetupGuide'; // Import the new setup guide
+import { SetupGuide } from './components/common/SetupGuide';
 
 type View = 'dashboard' | 'insights' | 'advanced' | 'welcome' | 'callback' | 'loading' | 'setup';
 
@@ -23,7 +23,7 @@ const SecureApp: React.FC = () => {
     user: authUser,
     isLoading: authLoading,
     error: authError,
-    setupRequired, // New state from the hook
+    setupRequired,
     initiateStravaAuth,
     logout: secureLogout,
     clearError: clearAuthError,
@@ -52,7 +52,7 @@ const SecureApp: React.FC = () => {
       if (!user) {
         setCurrentView('callback');
       } else {
-        window.history.replaceState({}, document.title, "/"); // Clean up URL after callback
+        window.history.replaceState({}, document.title, "/");
         setCurrentView('dashboard');
       }
     } else if (user) {
@@ -74,7 +74,6 @@ const SecureApp: React.FC = () => {
     if (!isInitialLoad) setDataLoading(true);
     if (!isInitialLoad) setDataError(null);
     try {
-      // apiClient.getUserRuns no longer needs user.id
       const { runs: fetchedRuns, stats: fetchedStats } = await apiClient.getUserRuns();
       setRuns(fetchedRuns as EnrichedRun[]);
       setStats(fetchedStats);
@@ -119,7 +118,6 @@ const SecureApp: React.FC = () => {
 
   const getTimestamps = (period: SyncPeriod): { after?: number; before?: number } => {
     const now = new Date();
-    const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     let startDate: Date | undefined;
     let endDate: Date = now;
 
@@ -136,7 +134,7 @@ const SecureApp: React.FC = () => {
         break;
       case "allTime":
       default:
-        startDate = undefined; // No start date for all time
+        startDate = undefined;
         endDate = new Date();
         break;
     }
@@ -164,7 +162,6 @@ const SecureApp: React.FC = () => {
 
       setSyncProgressMessage(`Fetching activities from ${readableAfter} to ${readableBefore}...`);
       
-      // apiClient.startSync no longer needs user.id
       const response = await apiClient.startSync({ timeRange }, (message: string, progress?: number) => {
         setSyncProgressMessage(message);
       });
@@ -189,8 +186,6 @@ const SecureApp: React.FC = () => {
     }
   };
 
-  // --- Render Logic ---
-
   if (currentView === 'setup') {
     return <SetupGuide missingVars={setupRequired.message} />;
   }
@@ -213,7 +208,7 @@ const SecureApp: React.FC = () => {
         <NavigationBar
           currentView={currentView}
           onNavigate={(viewName) => setCurrentView(viewName as View)}
-          userName={user.name}
+          userName={user.name || 'Runner'} // FIX: Add fallback for user.name
           onLogout={handleLogout}
           onSyncData={handleSyncData}
           isSyncing={isSyncing}
