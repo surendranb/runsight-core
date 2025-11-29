@@ -42,6 +42,7 @@ const SecureApp: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncProgressMessage, setSyncProgressMessage] = useState<string>('');
   const [debugConsoleOpen, setDebugConsoleOpen] = useState<boolean>(false);
+  const [initialSyncAttempted, setInitialSyncAttempted] = useState(false); // New state for auto-sync
 
   useEffect(() => {
     if (setupRequired.required) {
@@ -97,6 +98,26 @@ const SecureApp: React.FC = () => {
     }
   }, [user, user?.id, currentView, fetchData, authLoading]);
 
+  // NEW useEffect for conditional auto-sync on first login
+  useEffect(() => {
+    // Conditions for auto-sync:
+    // 1. User is authenticated and not loading auth state
+    // 2. Data fetching for runs is complete (not dataLoading)
+    // 3. No runs are currently present in the state
+    // 4. Auto-sync has not been attempted yet
+    // 5. Current view is the dashboard
+    if (
+      user && !authLoading && !dataLoading && 
+      runs.length === 0 && !initialSyncAttempted && 
+      currentView === 'dashboard'
+    ) {
+      console.log("Detected empty runs for new user. Initiating first sync...");
+      setInitialSyncAttempted(true); // Mark as attempted to prevent re-trigger
+      handleSyncData('allTime'); // Trigger auto-sync
+    }
+  }, [user, authLoading, dataLoading, runs.length, initialSyncAttempted, handleSyncData, currentView]);
+
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'D') {
@@ -114,6 +135,7 @@ const SecureApp: React.FC = () => {
     setRuns([]);
     setStats(null);
     setSyncProgressMessage('');
+    setInitialSyncAttempted(false); // Reset for next login
   };
 
   const getTimestamps = (period: SyncPeriod): { after?: number; before?: number } => {
@@ -145,7 +167,7 @@ const SecureApp: React.FC = () => {
     };
   };
 
-  const handleSyncData = async (period: SyncPeriod) => {
+  const handleSyncData = useCallback(async (period: SyncPeriod) => {
     if (!user || !user.id) {
       setSyncProgressMessage("❌ Please log in to sync data.");
       return;
@@ -169,7 +191,7 @@ const SecureApp: React.FC = () => {
       if (response.success && response.status === 'completed') {
         const results = response.results;
         setSyncProgressMessage(`🎉 Sync complete! Processed ${results.total_processed} activities.`);
-        await fetchData();
+        await fetchData(false); // Refresh data after sync. Set isInitialLoad to false for full loading indicator.
       } else {
         throw new Error(response.error?.message || response.message || 'Sync failed');
       }
@@ -184,7 +206,8 @@ const SecureApp: React.FC = () => {
       setIsSyncing(false);
       setTimeout(() => setSyncProgressMessage(''), 5000);
     }
-  };
+  }, [user, showError, fetchData]); // Add fetchData to dependencies
+
 
   if (currentView === 'setup') {
     return <SetupGuide missingVars={setupRequired.message} />;
@@ -208,7 +231,7 @@ const SecureApp: React.FC = () => {
         <NavigationBar
           currentView={currentView}
           onNavigate={(viewName) => setCurrentView(viewName as View)}
-          userName={user.name || 'Runner'} // FIX: Add fallback for user.name
+          userName={user.name || 'Runner'}
           onLogout={handleLogout}
           onSyncData={handleSyncData}
           isSyncing={isSyncing}
@@ -233,7 +256,6 @@ const SecureApp: React.FC = () => {
   return <div style={{ padding: '20px', textAlign: 'center' }}><p>Something went wrong.</p></div>;
 };
 
-// Wrap SecureApp with ToastProvider
 const AppWithToast: React.FC = () => (
     <ErrorBoundary>
         <ToastProvider>
