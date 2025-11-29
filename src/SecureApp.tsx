@@ -9,7 +9,6 @@ import { AdvancedPage } from './components/AdvancedPage';
 import { GoalsPage } from './components/GoalsPage';
 import { formatRunDate } from './lib/dateUtils';
 import { DebugConsole } from './components/DebugConsole';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useToast } from './components/common/ErrorToast';
 import { EnrichedRun, RunStats } from './types';
 import { apiClient } from './lib/secure-api-client';
@@ -42,7 +41,7 @@ const SecureApp: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncProgressMessage, setSyncProgressMessage] = useState<string>('');
   const [debugConsoleOpen, setDebugConsoleOpen] = useState<boolean>(false);
-  const [initialSyncAttempted, setInitialSyncAttempted] = useState(false); // New state for auto-sync
+  const [initialSyncAttempted, setInitialSyncAttempted] = useState(false);
 
   useEffect(() => {
     if (setupRequired.required) {
@@ -98,75 +97,6 @@ const SecureApp: React.FC = () => {
     }
   }, [user, user?.id, currentView, fetchData, authLoading]);
 
-  // NEW useEffect for conditional auto-sync on first login
-  useEffect(() => {
-    // Conditions for auto-sync:
-    // 1. User is authenticated and not loading auth state
-    // 2. Data fetching for runs is complete (not dataLoading)
-    // 3. No runs are currently present in the state
-    // 4. Auto-sync has not been attempted yet
-    // 5. Current view is the dashboard
-    if (
-      user && !authLoading && !dataLoading && 
-      runs.length === 0 && !initialSyncAttempted && 
-      currentView === 'dashboard'
-    ) {
-      console.log("Detected empty runs for new user. Initiating first sync...");
-      setInitialSyncAttempted(true); // Mark as attempted to prevent re-trigger
-      handleSyncData('allTime'); // Trigger auto-sync
-    }
-  }, [user, authLoading, dataLoading, runs.length, initialSyncAttempted, handleSyncData, currentView]);
-
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'D') {
-        event.preventDefault();
-        setDebugConsoleOpen(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleLogout = () => {
-    secureLogout();
-    setCurrentView('welcome');
-    setRuns([]);
-    setStats(null);
-    setSyncProgressMessage('');
-    setInitialSyncAttempted(false); // Reset for next login
-  };
-
-  const getTimestamps = (period: SyncPeriod): { after?: number; before?: number } => {
-    const now = new Date();
-    let startDate: Date | undefined;
-    let endDate: Date = now;
-
-    switch (period) {
-      case "14days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 14); startDate.setUTCHours(0, 0, 0, 0); break;
-      case "30days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 30); startDate.setUTCHours(0, 0, 0, 0); break;
-      case "60days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 60); startDate.setUTCHours(0, 0, 0, 0); break;
-      case "90days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 90); startDate.setUTCHours(0, 0, 0, 0); break;
-      case "thisYear": startDate = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0)); break;
-      case "lastYear":
-        const lastYear = now.getUTCFullYear() - 1;
-        startDate = new Date(Date.UTC(lastYear, 0, 1, 0, 0, 0));
-        endDate = new Date(Date.UTC(lastYear, 11, 31, 23, 59, 59));
-        break;
-      case "allTime":
-      default:
-        startDate = undefined;
-        endDate = new Date();
-        break;
-    }
-    
-    return {
-        after: startDate ? Math.floor(startDate.getTime() / 1000) : undefined,
-        before: endDate ? Math.floor(endDate.getTime() / 1000) : undefined
-    };
-  };
-
   const handleSyncData = useCallback(async (period: SyncPeriod) => {
     if (!user || !user.id) {
       setSyncProgressMessage("❌ Please log in to sync data.");
@@ -178,20 +108,34 @@ const SecureApp: React.FC = () => {
     setSyncProgressMessage('Starting sync...');
 
     try {
+      const getTimestamps = (p: SyncPeriod): { after?: number; before?: number } => {
+          const now = new Date();
+          let startDate: Date | undefined;
+          let endDate: Date = now;
+          switch (p) {
+              case "14days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 14); startDate.setUTCHours(0, 0, 0, 0); break;
+              case "30days": startDate = new Date(now); startDate.setUTCDate(now.getUTCDate() - 30); startDate.setUTCHours(0, 0, 0, 0); break;
+              case "allTime":
+              default: startDate = undefined; endDate = new Date(); break;
+          }
+          return {
+              after: startDate ? Math.floor(startDate.getTime() / 1000) : undefined,
+              before: endDate ? Math.floor(endDate.getTime() / 1000) : undefined
+          };
+      };
+
       const timeRange = getTimestamps(period);
       let readableAfter = timeRange.after ? formatRunDate(new Date(timeRange.after * 1000).toISOString()) : "beginning of time";
-      let readableBefore = timeRange.before ? formatRunDate(new Date(timeRange.before * 1000).toISOString()) : "now";
-
-      setSyncProgressMessage(`Fetching activities from ${readableAfter} to ${readableBefore}...`);
+      
+      setSyncProgressMessage(`Fetching activities from ${readableAfter}...`);
       
       const response = await apiClient.startSync({ timeRange }, (message: string, progress?: number) => {
         setSyncProgressMessage(message);
       });
 
-      if (response.success && response.status === 'completed') {
-        const results = response.results;
-        setSyncProgressMessage(`🎉 Sync complete! Processed ${results.total_processed} activities.`);
-        await fetchData(false); // Refresh data after sync. Set isInitialLoad to false for full loading indicator.
+      if (response.success) {
+        setSyncProgressMessage(`🎉 Sync complete! Processed ${response.results.total_processed} activities.`);
+        await fetchData(false);
       } else {
         throw new Error(response.error?.message || response.message || 'Sync failed');
       }
@@ -206,8 +150,24 @@ const SecureApp: React.FC = () => {
       setIsSyncing(false);
       setTimeout(() => setSyncProgressMessage(''), 5000);
     }
-  }, [user, showError, fetchData]); // Add fetchData to dependencies
+  }, [user, showError, fetchData]);
 
+  useEffect(() => {
+    if (user && !authLoading && !dataLoading && runs.length === 0 && !initialSyncAttempted && currentView === 'dashboard') {
+      console.log("Detected empty runs for new user. Initiating first sync...");
+      setInitialSyncAttempted(true);
+      handleSyncData('allTime');
+    }
+  }, [user, authLoading, dataLoading, runs, initialSyncAttempted, handleSyncData, currentView]);
+
+  const handleLogout = () => {
+    secureLogout();
+    setCurrentView('welcome');
+    setRuns([]);
+    setStats(null);
+    setSyncProgressMessage('');
+    setInitialSyncAttempted(false);
+  };
 
   if (currentView === 'setup') {
     return <SetupGuide missingVars={setupRequired.message} />;
@@ -217,12 +177,12 @@ const SecureApp: React.FC = () => {
     return <SecureStravaCallback />;
   }
 
-  if (currentView === 'loading') {
-    return <div style={{minHeight: '100vh',display: 'flex',alignItems: 'center',justifyContent: 'center',background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',fontFamily: 'system-ui, -apple-system, sans-serif'}}><div style={{background: 'white',borderRadius: '16px',padding: '40px',textAlign: 'center',boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'}}><div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div><h2 style={{ color: '#1f2937', margin: 0 }}>Loading...</h2></div></div>;
+  if (authLoading || (currentView === 'loading')) {
+    return <div style={{minHeight: '100vh',display: 'flex',alignItems: 'center',justifyContent: 'center',background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}><div style={{textAlign: 'center'}}><div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div><h2 style={{ color: 'white', margin: 0 }}>Loading...</h2></div></div>;
   }
   
   if (!user && currentView === 'welcome') {
-    return <div style={{minHeight: '100vh',display: 'flex',alignItems: 'center',justifyContent: 'center',background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',fontFamily: 'system-ui, -apple-system, sans-serif'}}><div style={{background: 'white',borderRadius: '16px',padding: '40px',maxWidth: '500px',width: '90%',textAlign: 'center',boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'}}><div style={{fontSize: '64px',marginBottom: '24px'}}>🏃‍♂️</div><h1 style={{fontSize: '32px',fontWeight: '700',color: '#1f2937',marginBottom: '16px'}}>RunSight</h1><p style={{color: '#6b7280',marginBottom: '32px',fontSize: '18px',lineHeight: '1.6'}}>Discover insights from your running data. Connect Strava.</p>{authError && (<div style={{background: '#fef2f2',border: '1px solid #fecaca',borderRadius: '8px',padding: '16px',marginBottom: '24px'}}><p style={{color: '#dc2626',fontSize: '14px',margin: 0}}>❌ {authError}</p><button onClick={clearAuthError} style={{background: 'transparent',border: 'none',color: '#dc2626',fontSize: '12px',cursor: 'pointer',marginTop: '8px',textDecoration: 'underline'}}>Dismiss</button></div>)}<button onClick={initiateStravaAuth} style={{background: '#fc4c02',color: 'white',border: 'none',borderRadius: '8px',padding: '16px 32px',fontSize: '18px',fontWeight: '600',cursor: 'pointer',transition: 'all 0.2s',display: 'flex',alignItems: 'center',justifyContent: 'center',gap: '12px',width: '100%',marginBottom: '24px'}}> <span style={{ fontSize: '24px' }}>🔗</span> Connect with Strava </button></div></div>;
+    return <div style={{minHeight: '100vh',display: 'flex',alignItems: 'center',justifyContent: 'center',background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}><div style={{background: 'white',borderRadius: '16px',padding: '40px',maxWidth: '500px',textAlign: 'center'}}><div style={{fontSize: '64px',marginBottom: '24px'}}>🏃‍♂️</div><h1 style={{fontSize: '32px',fontWeight: '700',color: '#1f2937'}}>RunSight</h1><p style={{color: '#6b7280',marginBottom: '32px'}}>Discover insights from your running data.</p>{authError && (<div><p>❌ {authError}</p><button onClick={clearAuthError}>Dismiss</button></div>)}<button onClick={initiateStravaAuth}>🔗 Connect with Strava</button></div></div>;
   }
 
   if (user) {
@@ -237,14 +197,9 @@ const SecureApp: React.FC = () => {
           isSyncing={isSyncing}
         />
         {(isSyncing || syncProgressMessage) && (
-            <div className={`px-4 py-3 shadow-md text-center transition-all duration-300 ${syncProgressMessage.includes('❌') ? 'bg-red-100 border-t-4 border-red-500 text-red-700' : syncProgressMessage.includes('🎉') ? 'bg-green-100 border-t-4 border-green-500 text-green-700' : 'bg-blue-100 border-t-4 border-blue-500 text-blue-700'}`} role="alert">
-                <div className="flex items-center justify-center space-x-2">
-                    {isSyncing && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>}
-                    <p className="font-medium">{syncProgressMessage}</p>
-                </div>
-            </div>
+            <div><p>{syncProgressMessage}</p></div>
         )}
-        {currentView === 'dashboard' && <ModernDashboard user={user} runs={runs} isLoading={dataLoading} error={dataError} onSync={() => handleSyncData('30days')} onLogout={handleLogout} />}
+        {currentView === 'dashboard' && <ModernDashboard user={user} runs={runs} isLoading={dataLoading} error={dataError} onSync={(period) => handleSyncData(period)} onLogout={handleLogout} />}
         {currentView === 'insights' && <InsightsPage user={user} runs={runs} isLoading={dataLoading} error={dataError} />}
         {currentView === 'advanced' && <AdvancedPage user={user} runs={runs} isLoading={dataLoading} error={dataError} />}
         {currentView === 'goals' && <GoalsPage user={user} runs={runs} isLoading={dataLoading} error={dataError} />}
@@ -253,15 +208,7 @@ const SecureApp: React.FC = () => {
     );
   }
 
-  return <div style={{ padding: '20px', textAlign: 'center' }}><p>Something went wrong.</p></div>;
+  return <div><p>Something went wrong.</p></div>;
 };
 
-const AppWithToast: React.FC = () => (
-    <ErrorBoundary>
-        <ToastProvider>
-            <SecureApp />
-        </ToastProvider>
-    </ErrorBoundary>
-);
-
-export default AppWithToast;
+export default SecureApp;
