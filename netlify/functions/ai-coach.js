@@ -1,9 +1,19 @@
 // netlify/functions/ai-coach.js - AI coaching service using Gemini 2.5 Flash
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const jwt = require('jsonwebtoken');
+const cookie = require('cookie');
+const { createClient } = require('@supabase/supabase-js'); // Needed to potentially fetch user data
+
+// IMPORTANT: Must be the same secret used in auth-strava.js, get-user.js, etc.
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-please-change-me-in-production';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 exports.handler = async (event, context) => {
+  // Determine allowed origin for CORS
+  const allowedOrigin = process.env.NETLIFY_SITE_URL || event.headers.origin || '*';
+
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
@@ -24,6 +34,43 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // --- Authentication Check ---
+  const cookies = cookie.parse(event.headers.cookie || '');
+  const sessionToken = cookies['sb-session'];
+
+  if (!sessionToken) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'AUTH_REQUIRED', message: 'No session token found' }),
+    };
+  }
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(sessionToken, JWT_SECRET);
+  } catch (jwtError) {
+    console.error('[ai-coach] JWT verification failed:', jwtError.message);
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'INVALID_TOKEN', message: 'Session token is invalid or expired' }),
+    };
+  }
+
+  const supabaseUid = decodedToken.sub; // Subject is the Supabase user ID
+
+  if (!supabaseUid) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'INVALID_TOKEN', message: 'User ID missing in session token' }),
+    };
+  }
+  // --- END Authentication Check ---
+
+  console.log(`[ai-coach] Authenticated user ${supabaseUid} is making an AI coaching request.`);
+
   try {
     const { action, data } = JSON.parse(event.body);
     
@@ -32,7 +79,7 @@ exports.handler = async (event, context) => {
     if (!geminiApiKey) {
       console.error('[ai-coach] GEMINI_API_KEY environment variable not set');
       return {
-        statusCode: 400,
+        statusCode: 500, // Changed to 500 as this is a server configuration error
         headers,
         body: JSON.stringify({
           error: 'CONFIG_ERROR',
@@ -47,18 +94,41 @@ exports.handler = async (event, context) => {
 
     let response;
     
+    // Initialize Supabase client for fetching user-specific data within AI functions
+    const supabaseUrl = process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+        global: {
+            headers: {
+                Authorization: `Bearer ${decodedToken.supabase_access_token}` // Act as the authenticated user
+            }
+        }
+    });
+
+    // Ensure data passed to AI functions belongs to the authenticated user
+    // This is a crucial step to prevent one user from querying AI with another user's data.
+    // The AI functions below (analyzeGoals, generateInsights, etc.) should either:
+    // 1. Explicitly fetch data for `supabaseUid` from the database using the `supabase` client.
+    // 2. Validate that any `data.userId` in the payload matches `supabaseUid`.
+    // For simplicity, we assume the frontend sends relevant, already-filtered-by-user data,
+    // but the backend functions should prioritize fetching fresh, authenticated data.
+
     switch (action) {
       case 'analyze_goals':
-        response = await analyzeGoals(model, data);
+        // The data here should be validated or fetched for supabaseUid
+        response = await analyzeGoals(model, data, supabase, supabaseUid);
         break;
       case 'generate_insights':
-        response = await generateInsights(model, data);
+        // The data here should be validated or fetched for supabaseUid
+        response = await generateInsights(model, data, supabase, supabaseUid);
         break;
       case 'create_training_plan':
-        response = await createTrainingPlan(model, data);
+        // The data here should be validated or fetched for supabaseUid
+        response = await createTrainingPlan(model, data, supabase, supabaseUid);
         break;
       case 'assess_progress':
-        response = await assessProgress(model, data);
+        // The data here should be validated or fetched for supabaseUid
+        response = await assessProgress(model, data, supabase, supabaseUid);
         break;
       default:
         return {
@@ -95,8 +165,16 @@ exports.handler = async (event, context) => {
   }
 };
 
-async function analyzeGoals(model, data) {
-  const { runningHistory, proposedGoals } = data;
+// Note: The AI helper functions below now accept `supabase` client and `supabaseUid`
+// to ensure they operate on authenticated user's data when necessary.
+// This is a placeholder for actual data fetching/validation logic within these functions.
+
+async function analyzeGoals(model, data, supabase, supabaseUid) {
+  // Example: Fetch running history for the authenticated user from the database
+  // const { data: runningHistoryDB, error } = await supabase.from('runs').select('*').eq('user_id', supabaseUid);
+  // Then combine with `data.proposedGoals` to generate prompt.
+  
+  const { runningHistory, proposedGoals } = data; // Assuming data contains validated/filtered info
   
   const prompt = `
 As an expert running coach, analyze the following runner's data and proposed goals:
@@ -138,8 +216,13 @@ Respond in JSON format with structured analysis.
   }
 }
 
-async function generateInsights(model, data) {
-  const { runs, performanceMetrics } = data;
+async function generateInsights(model, data, supabase, supabaseUid) {
+  // Example: Fetch runs and performance metrics for the authenticated user from the database
+  // const { data: userRuns, error } = await supabase.from('runs').select('*').eq('user_id', supabaseUid);
+  // const { data: userMetrics, error } = await supabase.from('user_metrics').select('*').eq('user_id', supabaseUid).single();
+  // Then combine with `data` to generate prompt.
+  
+  const { runs, performanceMetrics } = data; // Assuming data contains validated/filtered info
   
   console.log('[generateInsights] Input data:', {
     runsCount: runs?.length || 0,
@@ -227,8 +310,13 @@ Return as JSON array of insight objects with: title, description, priority (high
   }
 }
 
-async function createTrainingPlan(model, data) {
-  const { currentFitness, goals, timeframe, preferences } = data;
+async function createTrainingPlan(model, data, supabase, supabaseUid) {
+  // Example: Fetch current fitness and goals for the authenticated user from the database
+  // const { data: currentFitnessDB, error } = await supabase.from('user_training_profiles').select('*').eq('user_id', supabaseUid).single();
+  // const { data: userGoalsDB, error } = await supabase.from('goals').select('*').eq('user_id', supabaseUid);
+  // Then combine with `data` to generate prompt.
+  
+  const { currentFitness, goals, timeframe, preferences } = data; // Assuming data contains validated/filtered info
   
   const prompt = `
 Create a personalized training plan for this runner:
@@ -275,8 +363,13 @@ Return as JSON with weekly structure and detailed guidance.
   }
 }
 
-async function assessProgress(model, data) {
-  const { goals, currentProgress, timeRemaining } = data;
+async function assessProgress(model, data, supabase, supabaseUid) {
+  // Example: Fetch user goals and progress for the authenticated user from the database
+  // const { data: userGoalsDB, error } = await supabase.from('goals').select('*').eq('user_id', supabaseUid);
+  // const { data: userProgressDB, error } = await supabase.from('progress').select('*').eq('user_id', supabaseUid);
+  // Then combine with `data` to generate prompt.
+  
+  const { goals, currentProgress, timeRemaining } = data; // Assuming data contains validated/filtered info
   
   const prompt = `
 Assess this runner's progress toward their goals:

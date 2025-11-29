@@ -1,9 +1,19 @@
-// netlify/functions/sync-data.js - Simple sync function for single user
+// netlify/functions/sync-data.js - Secure sync function for authenticated user
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+const cookie = require('cookie');
+const fetch = require('node-fetch'); // Ensure node-fetch is available
+
+// IMPORTANT: Must be the same secret used in auth-strava.js, get-user.js, etc.
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-please-change-me-in-production';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 exports.handler = async (event, context) => {
+  // Determine allowed origin for CORS
+  const allowedOrigin = process.env.NETLIFY_SITE_URL || event.headers.origin || '*';
+
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
@@ -24,7 +34,42 @@ exports.handler = async (event, context) => {
     };
   }
 
-  console.log('[sync-data] Starting sync process...');
+  // --- Authentication Check ---
+  const cookies = cookie.parse(event.headers.cookie || '');
+  const sessionToken = cookies['sb-session'];
+
+  if (!sessionToken) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'AUTH_REQUIRED', message: 'No session token found' }),
+    };
+  }
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(sessionToken, JWT_SECRET);
+  } catch (jwtError) {
+    console.error('[sync-data] JWT verification failed:', jwtError.message);
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'INVALID_TOKEN', message: 'Session token is invalid or expired' }),
+    };
+  }
+
+  const supabaseUid = decodedToken.sub; // Subject is the Supabase user ID
+
+  if (!supabaseUid) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'INVALID_TOKEN', message: 'User ID missing in session token' }),
+    };
+  }
+  // --- END Authentication Check ---
+
+  console.log(`[sync-data] Authenticated user ${supabaseUid} is initiating sync process.`);
 
   try {
     // Parse request body
@@ -44,18 +89,8 @@ exports.handler = async (event, context) => {
       }
     }
 
-    const stravaUserId = requestData.userId || event.queryStringParameters?.userId;
-    
-    if (!stravaUserId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          error: 'MISSING_USER_ID',
-          message: 'userId is required in request body or query parameters'
-        })
-      };
-    }
+    // IMPORTANT: Ignore userId from request body/query and use authenticated supabaseUid
+    const authenticatedSupabaseUid = supabaseUid;
 
     // Environment variables
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -73,24 +108,31 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Initialize Supabase client with SERVICE_ROLE_KEY but pass the user's JWT for RLS enforcement
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${decodedToken.supabase_access_token}`
+        }
+      }
+    });
 
-    // Get user's Strava tokens from user_tokens table
-    console.log(`[sync-data] Looking up tokens for Strava user ${stravaUserId}...`);
+    // Get user's Strava tokens from user_tokens table, filtered by authenticated user
+    console.log(`[sync-data] Looking up tokens for authenticated user ${authenticatedSupabaseUid}...`);
     const { data: userTokens, error: tokenError } = await supabase
       .from('user_tokens')
       .select('*')
-      .eq('strava_user_id', stravaUserId)
+      .eq('user_id', authenticatedSupabaseUid) // IMPORTANT: Filter by authenticated user's ID
       .single();
 
     if (tokenError || !userTokens) {
-      console.error('[sync-data] User tokens not found:', tokenError);
+      console.error('[sync-data] User tokens not found for authenticated user:', tokenError);
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({
           error: 'AUTH_REQUIRED',
-          message: 'User not found or not authenticated with Strava. Please re-authenticate.',
+          message: 'User tokens not found or not authenticated with Strava. Please re-authenticate.',
           details: tokenError?.message
         })
       };
@@ -99,6 +141,7 @@ exports.handler = async (event, context) => {
     // Check if token is expired and refresh if needed
     const now = Math.floor(Date.now() / 1000);
     let accessToken = userTokens.strava_access_token;
+    const stravaUserIdFromTokens = userTokens.strava_user_id; // Get Strava ID from securely stored tokens
 
     if (userTokens.strava_expires_at <= now) {
       console.log('[sync-data] Access token expired, refreshing...');
@@ -129,7 +172,7 @@ exports.handler = async (event, context) => {
       const refreshData = await refreshResponse.json();
       accessToken = refreshData.access_token;
 
-      // Update tokens in database
+      // Update tokens in database, filtered by authenticated user's ID
       await supabase
         .from('user_tokens')
         .update({
@@ -138,7 +181,7 @@ exports.handler = async (event, context) => {
           strava_expires_at: refreshData.expires_at,
           updated_at: new Date().toISOString()
         })
-        .eq('strava_user_id', stravaUserId);
+        .eq('user_id', authenticatedSupabaseUid); // IMPORTANT: Filter by authenticated user's ID
 
       console.log('[sync-data] Tokens refreshed successfully');
     }
@@ -149,7 +192,7 @@ exports.handler = async (event, context) => {
     let page = 1;
     const perPage = 200; // Use max per page to reduce API calls
     
-    console.log(`[sync-data] Fetching activities from Strava with date range:`, {
+    console.log(`[sync-data] Fetching activities from Strava for user ${stravaUserIdFromTokens} with date range:`, {
       after: timeRange.after ? new Date(timeRange.after * 1000).toISOString() : 'none',
       before: timeRange.before ? new Date(timeRange.before * 1000).toISOString() : 'none'
     });
@@ -363,23 +406,22 @@ exports.handler = async (event, context) => {
 
     // Prepare all run data for batch upsert
     const runDataArray = runningActivities.map(activity => ({
+      user_id: authenticatedSupabaseUid, // IMPORTANT: Link run to authenticated user
       strava_id: activity.id,
       name: activity.name,
-      distance_meters: activity.distance,
-      moving_time_seconds: activity.moving_time,
-      elapsed_time_seconds: activity.elapsed_time,
+      distance: activity.distance, // Assuming DB stores in meters
+      moving_time: activity.moving_time, // Assuming DB stores in seconds
+      elapsed_time: activity.elapsed_time, // Assuming DB stores in seconds
       start_date: activity.start_date,
       start_date_local: activity.start_date_local,
-      start_latitude: activity.start_latlng ? activity.start_latlng[0] : null,
-      start_longitude: activity.start_latlng ? activity.start_latlng[1] : null,
-      end_latitude: activity.end_latlng ? activity.end_latlng[0] : null,
-      end_longitude: activity.end_latlng ? activity.end_latlng[1] : null,
-      average_speed_ms: activity.average_speed,
-      max_speed_ms: activity.max_speed,
+      start_latlng: activity.start_latlng ? `(${activity.start_latlng[0]},${activity.start_latlng[1]})` : null, // Convert to PostGIS Point format
+      end_latlng: activity.end_latlng ? `(${activity.end_latlng[0]},${activity.end_latlng[1]})` : null,
+      average_speed: activity.average_speed, // Assuming DB stores in m/s
+      max_speed: activity.max_speed, // Assuming DB stores in m/s
       // Convert heart rate values to integers (round decimal values)
-      average_heartrate_bpm: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
-      max_heartrate_bpm: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
-      total_elevation_gain_meters: activity.total_elevation_gain,
+      average_heartrate: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
+      max_heartrate: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
+      total_elevation_gain: activity.total_elevation_gain,
       activity_type: activity.type || activity.sport_type || 'Run',
       strava_data: activity,
       updated_at: new Date().toISOString()
@@ -431,11 +473,11 @@ exports.handler = async (event, context) => {
         
         for (let j = 0; j < batch.length; j++) {
           // Find the corresponding activity from the original array
-          const activityIndex = isChunkedSync ? (chunkIndex * chunkSize) + i + j : i + j;
-          const activity = runningActivities[activityIndex];
-          if (activity && activity.start_latlng) {
+          // Pass the ORIGINAL Strava activity to enrichment functions, not the prepared run object
+          const originalActivity = runningActivities[isChunkedSync ? (chunkIndex * chunkSize) + i + j : i + j];
+          if (originalActivity && originalActivity.start_latlng) {
             // Get location data first (uses caching)
-            const locationData = await enrichWithLocation(activity);
+            const locationData = await enrichWithLocation(originalActivity);
             if (locationData) {
               batch[j].city = locationData.city;
               batch[j].state = locationData.state;
@@ -444,7 +486,7 @@ exports.handler = async (event, context) => {
             }
             
             // Get weather data
-            const weatherData = await enrichWithWeather(activity);
+            const weatherData = await enrichWithWeather(originalActivity);
             if (weatherData) {
               batch[j].weather_data = weatherData;
               weatherEnrichedCount++;
@@ -463,7 +505,7 @@ exports.handler = async (event, context) => {
             onConflict: 'strava_id',
             ignoreDuplicates: false
           })
-          .select('strava_id, name');
+          .select('strava_id, name, user_id'); // Select user_id to ensure it's correctly set
 
         if (batchError) {
           console.error(`[sync-data] Batch ${batchNumber} failed:`, batchError);
@@ -476,7 +518,7 @@ exports.handler = async (event, context) => {
           
           // If we get a critical error, abort the sync
           if (batchError.code === '22P02' || batchError.code === '23505' || batchError.code === '42703') {
-            console.error(`[sync-data] Critical error detected, aborting sync:`, batchError);
+            console.error(`[sync-data] Critical database error detected, aborting sync:`, batchError);
             throw new Error(`Database error: ${batchError.message}. Sync aborted to prevent data corruption.`);
           }
         } else {
@@ -486,7 +528,7 @@ exports.handler = async (event, context) => {
           totalGeocodedCount += batchGeocodedCount;
           
           if (batchResult && batchResult.length > 0) {
-            console.log(`[sync-data] Sample saved activities:`, batchResult.slice(0, 2).map(r => `${r.name} (${r.strava_id})`));
+            console.log(`[sync-data] Sample saved activities:`, batchResult.slice(0, 2).map(r => `${r.name} (${r.strava_id}, user: ${r.user_id})`));
           }
         }
       } catch (batchError) {

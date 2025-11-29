@@ -29,7 +29,23 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' /.netlify/functions/*"
+    # Refined Content-Security-Policy to address XSS (FINDING-05)
+    # This is a strict policy. If the app breaks, it likely needs fine-tuning for specific scripts/styles.
+    # Aim is to remove 'unsafe-inline' and 'unsafe-eval' where possible.
+    Content-Security-Policy = "
+      default-src 'self';
+      script-src 'self' https://*.netlify.app; # Allow scripts from self and Netlify functions. Avoid 'unsafe-inline' and 'unsafe-eval'.
+      style-src 'self' 'unsafe-inline'; # 'unsafe-inline' often required for CSS-in-JS or dynamic styles. Aim to replace with nonces/hashes.
+      img-src 'self' data: https:; # Allow self, data URIs, and HTTPS images (e.g., Strava profile pics)
+      connect-src 'self' /.netlify/functions/* https://*.supabase.co https://*.supabase.io https://api.strava.com https://*.strava.com; # Allow Supabase and Strava APIs
+      font-src 'self' https: data:; # Allow fonts from self, HTTPS, and data URIs
+      object-src 'none'; # No plugins
+      base-uri 'self'; # Restrict base URL
+      form-action 'self' https://www.strava.com; # Allow forms to submit to self and Strava
+      frame-ancestors 'self'; # Prevent clickjacking
+      frame-src 'self' https://www.youtube.com; # If embedded videos, adjust
+      worker-src 'self' blob:; # Allow web workers, often needed by build tools
+    "
 
 [dev]
   command = "npm run dev"
@@ -39,7 +55,9 @@
 # Environment variables needed (set in Netlify dashboard):
 # STRAVA_CLIENT_ID - Your Strava app client ID
 # STRAVA_CLIENT_SECRET - Your Strava app client secret (SECURE - server only)
-# STRAVA_REDIRECT_URI - Your callback URL (e.g., https://your-app.netlify.app/auth/callback)
-# SUPABASE_URL - Your Supabase project URL
+# VITE_STRAVA_REDIRECT_URI - Your callback URL (e.g., https://your-app.netlify.app/auth/callback)
+# VITE_FRONTEND_URL - The base URL of your frontend (e.g., https://your-app.netlify.app)
+# VITE_SUPABASE_URL - Your Supabase project URL
 # SUPABASE_SERVICE_KEY - Your Supabase service role key (SECURE - server only)
 # OPENWEATHER_API_KEY - Your OpenWeatherMap API key (SECURE - server only)
+# JWT_SECRET - CRITICAL: A strong, random key for signing JWTs. (SECURE - server only)

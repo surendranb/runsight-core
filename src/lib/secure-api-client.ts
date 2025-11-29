@@ -1,15 +1,18 @@
-// Simple API Client - Uses simplified single-user functions
+// Secure API Client - All communication now goes through Netlify Functions with JWT authentication
+// This client is for the runsight-core application.
 import { productionErrorHandler } from './production-error-handler';
+import { User } from '../hooks/useSecureAuth'; // Get the User interface from the auth hook
 
-export interface User {
-  id: string | number; // Can be Strava user ID (number) or string
-  strava_id: number;
-  name: string;
-  email?: string;
-}
+// User interface defined in useSecureAuth.ts is now the source of truth
+// export interface User {
+//   id: string; // Supabase UID
+//   strava_id: number | null;
+//   name: string;
+//   email?: string;
+// }
 
 export interface Run {
-  id: string | number;
+  id: string;
   strava_id: number;
   name: string;
   distance: number;
@@ -37,6 +40,9 @@ export interface Run {
   activity_type: string;
   weather_data: any;
   strava_data: any;
+  city: string | null; // Added
+  state: string | null; // Added
+  country: string | null; // Added
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +56,6 @@ export interface RunStats {
 }
 
 export interface SyncRequest {
-  userId?: string | number;
   timeRange?: {
     after?: number;
     before?: number;
@@ -58,7 +63,10 @@ export interface SyncRequest {
   options?: {
     batchSize?: number;
     skipWeatherEnrichment?: boolean;
+    processAll?: boolean; // Added for sync-data chunking
   };
+  chunkIndex?: number; // Added for sync-data chunking
+  chunkSize?: number; // Added for sync-data chunking
 }
 
 export interface SyncResponse {
@@ -66,6 +74,14 @@ export interface SyncResponse {
   message: string;
   timestamp: string;
   status: string;
+  chunking?: { // Added for sync-data chunking
+    currentChunk: number;
+    totalChunks: number;
+    hasMoreChunks: boolean;
+    nextChunkIndex: number;
+    totalActivities: number;
+    processedSoFar: number;
+  };
   results: {
     total_processed: number;
     activities_saved: number;
@@ -79,16 +95,39 @@ export interface SyncResponse {
   error?: any;
 }
 
+// User Training Profile (from supabase/migrations/20250812000000_add_advanced_training_metrics.sql)
+export interface UserTrainingProfile {
+  id: string;
+  user_id: string;
+  resting_heart_rate?: number;
+  max_heart_rate?: number;
+  estimated_weight?: number;
+  current_vo2_max?: number;
+  current_ctl?: number;
+  current_atl?: number;
+  current_tsb?: number;
+  optimal_temperature?: number;
+  heat_tolerance_level?: 'low' | 'medium' | 'high';
+  heart_rate_zones?: any;
+  pace_zones?: any;
+  last_calculated: string;
+  created_at: string;
+  updated_at: string;
+}
+
+
 class SecureApiClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = '/.netlify/functions';
+    this.baseUrl = '/.netlify/functions'; // All calls go to Netlify Functions
   }
 
-  // Authentication flow (keeping existing methods for compatibility)
+  // --- Authentication Flow ---
+
+  // Get Strava authorization URL from Netlify Function
   async getStravaAuthUrl(): Promise<string> {
-    console.log('🔗 Getting Strava authorization URL...');
+    console.log('🔗 Getting Strava authorization URL from Netlify Function...');
     
     try {
       const response = await fetch(`${this.baseUrl}/auth-strava`, {
@@ -119,8 +158,9 @@ class SecureApiClient {
     }
   }
 
-  async authenticateWithStrava(code: string): Promise<{ user: User; sessionUrl: string }> {
-    console.log('🔐 Authenticating with Strava...');
+  // Authenticate with Strava via Netlify Function
+  async authenticateWithStrava(code: string): Promise<void> { // Now returns void, as auth-strava redirects
+    console.log('🔐 Authenticating with Strava via Netlify Function...');
     
     try {
       const response = await fetch(`${this.baseUrl}/auth-strava`, {
@@ -129,6 +169,8 @@ class SecureApiClient {
         body: JSON.stringify({ code }),
       });
 
+      // auth-strava now handles the redirect directly by returning statusCode 302
+      // So, if we get a 200 here, it means something went wrong server-side.
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Authentication failed' }));
         const error = productionErrorHandler.handleNetlifyFunctionError(
@@ -139,11 +181,17 @@ class SecureApiClient {
         throw new Error(error.message);
       }
 
+      // We should not reach here if auth-strava correctly performs a redirect.
+      // If it does, it implies an error or an unexpected response.
+      console.warn('authenticateWithStrava received 200 OK, but expected redirect. Check auth-strava function.');
       const data = await response.json();
-      return {
-        user: data.user,
-        sessionUrl: data.session_url
-      };
+      if (data.error) {
+        throw new Error(data.message || 'Authentication failed on server.');
+      }
+      // If we somehow reach here and there's no error, it means the redirect didn't happen client-side
+      // but the server might have processed the request successfully.
+      // The session should be established via cookie, so a subsequent get-user call will confirm.
+      
     } catch (error) {
       if (error instanceof Error && error.message.includes('fetch')) {
         const networkError = productionErrorHandler.handleNetworkError(error, {
@@ -156,176 +204,67 @@ class SecureApiClient {
     }
   }
 
-  // NEW: Start a sync using the simplified sync-data function with chunked processing
-  async startSync(
-    userId: string | number, 
-    syncRequest: SyncRequest = {}, 
-    onProgress?: (message: string, progress?: number) => void
-  ): Promise<SyncResponse> {
-    console.log(`🔄 Starting sync for user ${userId}`, syncRequest);
-    
-    return await this.executeChunkedSync(userId, syncRequest, onProgress);
-  }
+  // --- Data Synchronization ---
 
-  // Execute chunked sync to handle large datasets elegantly
-  private async executeChunkedSync(
-    userId: string | number, 
-    syncRequest: SyncRequest = {}, 
-    onProgress?: (message: string, progress?: number) => void
-  ): Promise<SyncResponse> {
+  // Start a sync using the Netlify sync-data function
+  async startSync(syncRequest: SyncRequest = {}, onProgress?: (message: string, progress?: number) => void): Promise<SyncResponse> {
+    console.log(`🔄 Starting sync via Netlify Function...`);
+    
+    // sync-data function now handles authentication via cookie
     try {
-    let chunkIndex = 0;
-    let hasMoreChunks = true;
-    let totalResults = {
-      total_processed: 0,
-      activities_saved: 0,
-      activities_updated: 0,
-      activities_skipped: 0,
-      activities_failed: 0,
-      weather_enriched: 0,
-      geocoded: 0,
-      duration_seconds: 0
-    };
-
-    console.log(`🔄 Starting chunked sync for user ${userId}`);
-    onProgress?.('🔄 Starting chunked sync...', 0);
-
-    while (hasMoreChunks) {
-      const requestBody = {
-        userId: userId,
-        timeRange: syncRequest.timeRange,
-        options: syncRequest.options,
-        chunkIndex: chunkIndex,
-        chunkSize: 20 // Process 20 runs at a time with full weather enrichment
-      };
-      
-      console.log(`🔄 Processing chunk ${chunkIndex + 1}...`);
-      onProgress?.(`🔄 Processing chunk ${chunkIndex + 1}...`, undefined);
-      
-      const response = await fetch(`${this.baseUrl}/sync-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `Failed to sync chunk ${chunkIndex + 1}` }));
-        
-        // Handle specific sync errors with appropriate recovery options
-        if (response.status === 429) {
-          const error = productionErrorHandler.handleAPIRateLimitError(
-            { ...errorData, statusCode: response.status },
-            'strava',
-            { operation: 'sync-data', userId: String(userId) }
-          );
-          throw new Error(error.message);
-        } else if (errorData.error === 'AUTH_REQUIRED' || errorData.error === 'TOKEN_REFRESH_FAILED') {
-          const error = productionErrorHandler.handleNetlifyFunctionError(
-            { ...errorData, statusCode: response.status },
-            'sync-data',
-            { operation: 'sync-chunk', userId: String(userId) }
-          );
-          throw new Error(error.message);
-        } else {
-          const error = productionErrorHandler.handleNetlifyFunctionError(
-            { ...errorData, statusCode: response.status },
-            'sync-data',
-            { operation: 'sync-chunk', userId: String(userId) }
-          );
-          throw new Error(error.message);
-        }
-      }
-
-      const data = await response.json();
-      
-      // Accumulate results from this chunk
-      if (data.results) {
-        totalResults.total_processed += data.results.total_processed || 0;
-        totalResults.activities_saved += data.results.activities_saved || 0;
-        totalResults.activities_updated += data.results.activities_updated || 0;
-        totalResults.activities_skipped += data.results.activities_skipped || 0;
-        totalResults.activities_failed += data.results.activities_failed || 0;
-        totalResults.weather_enriched += data.results.weather_enriched || 0;
-        totalResults.geocoded += data.results.geocoded || 0;
-        totalResults.duration_seconds += data.results.duration_seconds || 0;
-      }
-
-      // Check if there are more chunks to process
-      if (data.chunking && data.chunking.hasMoreChunks) {
-        hasMoreChunks = true;
-        chunkIndex = data.chunking.nextChunkIndex;
-        
-        const progressPercent = Math.round((data.chunking.processedSoFar / data.chunking.totalActivities) * 100);
-        const progressMessage = `✅ Chunk ${chunkIndex} completed! Processing chunk ${chunkIndex + 1} of ${data.chunking.totalChunks} (${data.chunking.processedSoFar}/${data.chunking.totalActivities} activities)`;
-        
-        console.log(progressMessage);
-        onProgress?.(progressMessage, progressPercent);
-        
-        // Show detailed results for this chunk
-        if (data.results.weather_enriched > 0) {
-          onProgress?.(`🌤️ Weather enriched: ${totalResults.weather_enriched} runs, Geocoded: ${totalResults.geocoded} locations`, progressPercent);
-        }
-        
-        // Small delay between chunks to be gentle on the server
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } else {
-        hasMoreChunks = false;
-        const finalMessage = `✅ All chunks completed! Total processed: ${totalResults.total_processed} activities`;
-        console.log(finalMessage);
-        onProgress?.(finalMessage, 100);
-      }
-    }
-    
-    // Return the combined response
-    return {
-      success: true,
-      message: `Chunked sync completed successfully. Processed ${totalResults.total_processed} activities with full weather enrichment.`,
-      timestamp: new Date().toISOString(),
-      status: 'completed',
-      results: totalResults
-    };
-    } catch (error) {
-      // Handle network errors during chunked sync
-      if (error instanceof Error && error.message.includes('fetch')) {
-        const networkError = productionErrorHandler.handleNetworkError(error, {
-          operation: 'chunked-sync',
-          endpoint: `${this.baseUrl}/sync-data`,
-          userId: String(userId)
+        const response = await fetch(`${this.baseUrl}/sync-data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(syncRequest),
         });
-        throw new Error(networkError.message);
-      }
-      throw error;
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Sync failed' }));
+            const error = productionErrorHandler.handleNetlifyFunctionError(
+                { ...errorData, statusCode: response.status },
+                'sync-data',
+                { operation: 'start-sync' }
+            );
+            throw new Error(error.message);
+        }
+
+        const data = await response.json();
+        // Since sync-data can be chunked, it returns partial results
+        // This apiClient method itself doesn't handle chunking logic,
+        // it just makes one request and returns its response.
+        return data;
+
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('fetch')) {
+            const networkError = productionErrorHandler.handleNetworkError(error, {
+                operation: 'start-sync',
+                endpoint: `${this.baseUrl}/sync-data`
+            });
+            throw new Error(networkError.message);
+        }
+        throw error;
     }
   }
 
-  // Get user runs using simplified get-runs function
-  async getUserRuns(userId: string | number): Promise<{ runs: Run[]; stats: RunStats; count?: number }> {
-    console.log(`📖 Fetching runs and stats for user ${userId}...`);
+  // --- User Data Fetching ---
+
+  // Get user runs via Netlify get-runs function
+  async getUserRuns(): Promise<{ runs: Run[]; stats: RunStats; count?: number }> { // No need for userId param anymore
+    console.log(`📖 Fetching runs via Netlify Function...`);
     
     try {
-      const response = await fetch(`${this.baseUrl}/get-runs?userId=${userId}`, {
+      const response = await fetch(`${this.baseUrl}/get-runs`, { // userId is now implicit from cookie
         method: 'GET',
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to fetch user runs and stats' }));
-        
-        // Handle database-specific errors
-        if (errorData.error === 'DB_ERROR' || errorData.error === 'CONFIG_ERROR') {
-          const error = productionErrorHandler.handleSupabaseError(
-            { ...errorData, statusCode: response.status },
-            'get-runs',
-            { operation: 'fetch-runs', userId: String(userId) }
-          );
-          throw new Error(error.message);
-        } else {
-          const error = productionErrorHandler.handleNetlifyFunctionError(
-            { ...errorData, statusCode: response.status },
-            'get-runs',
-            { operation: 'fetch-runs', userId: String(userId) }
-          );
-          throw new Error(error.message);
-        }
+        const error = productionErrorHandler.handleNetlifyFunctionError(
+          { ...errorData, statusCode: response.status },
+          'get-runs',
+          { operation: 'fetch-runs' }
+        );
+        throw new Error(error.message);
       }
 
       const data = await response.json();
@@ -338,8 +277,7 @@ class SecureApiClient {
       if (error instanceof Error && error.message.includes('fetch')) {
         const networkError = productionErrorHandler.handleNetworkError(error, {
           operation: 'fetch-runs',
-          endpoint: `${this.baseUrl}/get-runs`,
-          userId: String(userId)
+          endpoint: `${this.baseUrl}/get-runs`
         });
         throw new Error(networkError.message);
       }
@@ -347,11 +285,112 @@ class SecureApiClient {
     }
   }
 
-  // Simplified cleanup method (no complex session management needed)
-  async cleanupStuckSessions(userId: string | number): Promise<void> {
-    console.log(`🧹 Note: No cleanup needed with simplified sync approach for user ${userId}`);
-    // No-op for simplified approach - no complex session management
-    return Promise.resolve();
+  // Get user physiology via Netlify get-user-physiology function
+  async getUserPhysiology(): Promise<UserTrainingProfile | null> { // No need for userId param anymore
+    console.log(`🧠 Fetching user physiology via Netlify Function...`);
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/get-user-physiology`, { // userId is now implicit from cookie
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch user physiology' }));
+        if (response.status === 404 && errorData.message.includes('User training profile not found')) {
+            return null; // No profile yet
+        }
+        const error = productionErrorHandler.handleNetlifyFunctionError(
+          { ...errorData, statusCode: response.status },
+          'get-user-physiology',
+          { operation: 'fetch-physiology' }
+        );
+        throw new Error(error.message);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('fetch')) {
+        const networkError = productionErrorHandler.handleNetworkError(error, {
+          operation: 'fetch-physiology',
+          endpoint: `${this.baseUrl}/get-user-physiology`
+        });
+        throw new Error(networkError.message);
+      }
+      throw error;
+    }
+  }
+
+  // Update user physiology via Netlify update-user-physiology function
+  async updateUserPhysiology(profileData: Partial<UserTrainingProfile>): Promise<UserTrainingProfile> { // No need for userId param anymore
+    console.log(`✍️ Updating user physiology via Netlify Function...`);
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/update-user-physiology`, { // userId is now implicit from cookie
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData), // Send only profile data, user_id set by function
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update user physiology' }));
+        const error = productionErrorHandler.handleNetlifyFunctionError(
+          { ...errorData, statusCode: response.status },
+          'update-user-physiology',
+          { operation: 'update-physiology' }
+        );
+        throw new Error(error.message);
+      }
+
+      const data = await response.json();
+      return data.profile; // Netlify function returns { success: true, profile: updatedProfile }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('fetch')) {
+        const networkError = productionErrorHandler.handleNetworkError(error, {
+          operation: 'update-physiology',
+          endpoint: `${this.baseUrl}/update-user-physiology`
+        });
+        throw new Error(networkError.message);
+      }
+      throw error;
+    }
+  }
+
+  // --- AI Coach Functions ---
+
+  // Call AI coach via Netlify ai-coach function
+  async callAICoach(action: string, data: any): Promise<any> {
+    console.log(`🤖 Calling AI Coach via Netlify Function for action: ${action}`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coach`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `AI Coach ${action} failed` }));
+        const error = productionErrorHandler.handleNetlifyFunctionError(
+          { ...errorData, statusCode: response.status },
+          'ai-coach',
+          { operation: action }
+        );
+        throw new Error(error.message);
+      }
+
+      const responseData = await response.json();
+      return responseData.response; // Netlify function returns { success, action, response }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('fetch')) {
+        const networkError = productionErrorHandler.handleNetworkError(error, {
+          operation: action,
+          endpoint: `${this.baseUrl}/ai-coach`
+        });
+        throw new Error(networkError.message);
+      }
+      throw error;
+    }
   }
 }
 
