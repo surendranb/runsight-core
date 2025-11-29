@@ -1,14 +1,14 @@
-# RunSight Web 🏃‍♂️
+# RunSight Core 🏃‍♂️
 
 **Open-source running analytics dashboard that transforms your Strava data into actionable insights.**
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/surendranb/runsight-web)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/surendranb/runsight-core)
 
 <!-- Project Status & Quality Badges -->
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![GitHub issues](https://img.shields.io/github/issues/surendranb/runsight-web)](https://github.com/surendranb/runsight-web/issues)
-[![GitHub stars](https://img.shields.io/github/stars/surendranb/runsight-web)](https://github.com/surendranb/runsight-web/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/surendranb/runsight-core)](https://github.com/surendranb/runsight-core/issues)
+[![GitHub stars](https://img.shields.io/github/stars/surendranb/runsight-core)](https://github.com/surendranb/runsight-core/stargazers)
 [![Live Demo](https://img.shields.io/badge/Live-Demo-success?logo=netlify&logoColor=white)](https://resonant-pony-ea7953.netlify.app/)
 
 <!-- Tech Stack Badges -->
@@ -26,7 +26,7 @@
 
 <!-- Running Community Badges -->
 [![Built by Runners](https://img.shields.io/badge/Built_by-Runners-E91E63?logo=run&logoColor=white)](#-community)
-[![10+ Insights](https://img.shields.io/badge/Insights-10+-FF9800?logo=analytics&logoColor=white)](#-what-is-runsight-web)
+[![10+ Insights](https://img.shields.io/badge/Insights-10+-FF9800?logo=analytics&logoColor=white)](#-what-is-runsight-core)
 [![Weather Analysis](https://img.shields.io/badge/Weather-Analysis-87CEEB?logo=cloud&logoColor=white)](#-key-features)
 [![Personal Records](https://img.shields.io/badge/Track-PRs-FFD700?logo=trophy&logoColor=white)](#-key-features)
 
@@ -34,9 +34,9 @@
 
 ---
 
-## 🎯 What is RunSight Web?
+## 🎯 What is RunSight Core?
 
-RunSight Web connects to your Strava account and provides **10+ specialized insights** about your running performance, including:
+RunSight Core connects to your Strava account and provides **10+ specialized insights** about your running performance, including:
 
 - 📈 **Performance Trends** - Track pace, distance, and consistency over time
 - 🌤️ **Weather Impact** - See how temperature, humidity, and wind affect your runs
@@ -59,8 +59,8 @@ RunSight Web connects to your Strava account and provides **10+ specialized insi
 ### Option 2: Self-Host
 ```bash
 # 1. Clone and setup
-git clone https://github.com/surendranb/runsight-web.git
-cd runsight-web
+git clone https://github.com/surendranb/runsight-core.git
+cd runsight-core
 npm install
 npm run setup  # Validates your environment
 
@@ -115,7 +115,7 @@ npm run setup  # Validates your environment
 
 ## 🏗️ Architecture
 
-RunSight Web uses a **secure, serverless architecture**:
+RunSight Core uses a **secure, serverless architecture**:
 
 ```
 React Frontend → Netlify Functions → Supabase Database
@@ -183,20 +183,20 @@ OPENWEATHER_API_KEY=your_api_key
 
 ## 🤝 Contributing
 
-We welcome contributions! RunSight Web is built by runners, for runners.
+We welcome contributions! RunSight Core is built by runners, for runners.
 
 ### 🐛 Found a Bug?
-- [Report it here](https://github.com/surendranb/runsight-web/issues/new?template=bug_report.md)
+- [Report it here](https://github.com/surendranb/runsight-core/issues/new?template=bug_report.md)
 - Include steps to reproduce and your environment details
 
 ### 💡 Have an Idea?
-- [Suggest a feature](https://github.com/surendranb/runsight-web/issues/new?template=feature_request.md)
+- [Suggest a feature](https://github.com/surendranb/runsight-core/issues/new?template=feature_request.md)
 - Check existing issues to avoid duplicates
 
 ### 👩‍💻 Want to Code?
 - Read our [Contributing Guide](CONTRIBUTING.md)
 - Look for issues labeled `good first issue`
-- Join discussions in [GitHub Discussions](https://github.com/surendranb/runsight-web/discussions)
+- Join discussions in [GitHub Discussions](https://github.com/surendranb/runsight-core/discussions)
 
 ---
 
@@ -209,20 +209,20 @@ We welcome contributions! RunSight Web is built by runners, for runners.
 - **📱 Mobile optimized** - Works great on phones and tablets
 
 ### 🙏 Contributors
-Thanks to all the amazing people who have contributed to RunSight Web!
+Thanks to all the amazing people who have contributed to RunSight Core!
 
 <!-- Contributors will be automatically added here -->
 
 ### 💬 Get Help
-- **[GitHub Discussions](https://github.com/surendranb/runsight-web/discussions)** - Ask questions and share experiences
-- **[GitHub Issues](https://github.com/surendranb/runsight-web/issues)** - Report bugs and request features
+- **[GitHub Discussions](https://github.com/surendranb/runsight-core/discussions)** - Ask questions and share experiences
+- **[GitHub Issues](https://github.com/surendranb/runsight-core/issues)** - Report bugs and request features
 - **[Documentation](docs/)** - Comprehensive guides and troubleshooting
 
 ---
 
 ## 📄 License
 
-MIT License - feel free to use RunSight Web for personal or commercial projects.
+MIT License - feel free to use RunSight Core for personal or commercial projects.
 
 **What this means:**
 - ✅ Use it for personal running analytics
@@ -234,9 +234,9 @@ MIT License - feel free to use RunSight Web for personal or commercial projects.
 
 ## 🎉 Ready to Get Started?
 
-1. **[Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/surendranb/runsight-web)** - One-click deployment
+1. **[Deploy to Netlify](https://app.netlify.com/start/deploy?repository=https://github.com/surendranb/runsight-core)** - One-click deployment
 2. **[Read the Setup Guide](docs/DEPLOYMENT.md)** - Detailed instructions
-3. **[Join the Community](https://github.com/surendranb/runsight-web/discussions)** - Connect with other users
+3. **[Join the Community](https://github.com/surendranb/runsight-core/discussions)** - Connect with other users
 
 **Happy running and analyzing! 🏃‍♂️📊**
 
@@ -244,7 +244,7 @@ MIT License - feel free to use RunSight Web for personal or commercial projects.
 
 <div align="center">
 
-**⭐ Star this repo if RunSight Web helps improve your running! ⭐**
+**⭐ Star this repo if RunSight Core helps improve your running! ⭐**
 
 Made with ❤️ by runners, for runners
 
