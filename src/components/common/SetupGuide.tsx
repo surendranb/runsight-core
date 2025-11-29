@@ -1,10 +1,35 @@
 // src/components/common/SetupGuide.tsx
-import React from 'react';
-import { StandardButton } from './StandardButton'; // Assuming this is a standard button component
+import React, { useState } from 'react';
+import { StandardButton } from './StandardButton';
+import { SyncPeriod } from '../NavigationBar';
 
 export const SetupGuide = ({ missingVars }: { missingVars: string }) => {
+  const [generatedSecret, setGeneratedSecret] = useState<string>('');
+  const [copied, setCopied] = useState(false);
+
   const handleReload = () => {
     window.location.reload();
+  };
+
+  const handleGenerateSecret = () => {
+    const array = new Uint8Array(32);
+    window.crypto.getRandomValues(array);
+    // Convert bytes to a Base64 string - a common format for secrets
+    const secret = btoa(String.fromCharCode.apply(null, Array.from(array)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, ''); // URL-safe Base64
+    setGeneratedSecret(secret);
+    setCopied(false); // Reset copied state
+  };
+
+  const handleCopyToClipboard = () => {
+    if (generatedSecret) {
+      navigator.clipboard.writeText(generatedSecret).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+      });
+    }
   };
 
   const netlifyHostname = window.location.hostname;
@@ -54,15 +79,35 @@ export const SetupGuide = ({ missingVars }: { missingVars: string }) => {
           </ul>
         </li>
         <li>
-          <strong>JWT Secret:</strong> You need a strong, random secret for signing sessions.
-          <ul>
-            <li>You can generate one easily by running this command in a terminal: <code>openssl rand -base64 32</code></li>
-          </ul>
+          <strong>JWT Secret:</strong> Generate a strong, random secret for signing sessions using the generator below.
         </li>
         <li>
           <strong>OpenWeather API Key (Optional):</strong> If you want weather data, get a free API key from <a href="https://openweathermap.org/api" target="_blank" rel="noopener noreferrer">OpenWeatherMap</a>.
         </li>
       </ol>
+      
+      {/* In-App JWT Secret Generator */}
+      <div style={{ border: '1px dashed #a78bfa', padding: '15px', borderRadius: '8px', marginTop: '15px', backgroundColor: '#f5f3ff' }}>
+        <h3 style={{ marginTop: 0, color: '#4c1d95' }}>JWT Secret Generator</h3>
+        <p style={{ fontSize: '14px', color: '#5b21b6' }}>Click the button to generate a secure, random secret. Then, copy it and paste it into Netlify for the `JWT_SECRET` variable.</p>
+        <StandardButton onClick={handleGenerateSecret} className="bg-violet-500 hover:bg-violet-600 text-white">
+          Generate Secret
+        </StandardButton>
+        {generatedSecret && (
+          <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <input 
+              type="text" 
+              value={generatedSecret} 
+              readOnly 
+              style={{ flexGrow: 1, padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontFamily: 'monospace' }}
+            />
+            <StandardButton onClick={handleCopyToClipboard} className="bg-gray-200 hover:bg-gray-300">
+              {copied ? 'Copied!' : 'Copy'}
+            </StandardButton>
+          </div>
+        )}
+      </div>
+
 
       <h2>Step 3: Add Environment Variables to Netlify</h2>
       <p>Now, you need to provide all these keys to your Netlify site so it can function securely.</p>
@@ -88,7 +133,7 @@ export const SetupGuide = ({ missingVars }: { missingVars: string }) => {
           <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>VITE_STRAVA_CLIENT_SECRET</code></td><td style={{ padding: '8px', border: '1p solid #ddd' }}>Your Strava Client Secret</td></tr>
           <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>VITE_STRAVA_REDIRECT_URI</code></td><td style={{ padding: '8px', border: '1px solid #ddd' }}>{stravaCallbackUrl}</td></tr>
           <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>VITE_FRONTEND_URL</code></td><td style={{ padding: '8px', border: '1px solid #ddd' }}>https://{netlifyHostname}</td></tr>
-          <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>JWT_SECRET</code></td><td style={{ padding: '8px', border: '1px solid #ddd' }}>Your securely generated secret</td></tr>
+          <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>JWT_SECRET</code></td><td style={{ padding: '8px', border: '1px solid #ddd' }}>Use the generator above and copy/paste here</td></tr>
           <tr><td style={{ padding: '8px', border: '1px solid #ddd' }}><code>OPENWEATHER_API_KEY</code></td><td style={{ padding: '8px', border: '1px solid #ddd' }}>Your OpenWeatherMap API key (optional)</td></tr>
         </tbody>
       </table>
