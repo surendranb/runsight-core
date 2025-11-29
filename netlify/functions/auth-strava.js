@@ -61,7 +61,7 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'MISSING_CODE', message: 'Authorization code is required' }) };
       }
 
-      console.log('[auth-strava] Exchanging code for Strava tokens...');
+      console.log('[auth-strava] Step 1: Exchanging code for Strava tokens...');
       const stravaTokenResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,24 +80,24 @@ exports.handler = async (event, context) => {
       const stravaData = await stravaTokenResponse.json();
       const { athlete, access_token, refresh_token, expires_at } = stravaData;
       
-      console.log(`[auth-strava] Strava token exchange successful for user ${athlete.id}`);
+      console.log(`[auth-strava] Step 1 successful for Strava user ${athlete.id}`);
 
-      // --- Robust "Find or Create" Supabase User Logic ---
+      // --- Step 2: Robust "Find or Create" Supabase User Logic ---
       let supabaseUser;
       
-      // Step 1: Find user by Strava provider ID
+      console.log(`[auth-strava] Step 2: Finding Supabase user for Strava ID ${athlete.id}...`);
       const { data: users, error: findError } = await supabaseAdmin.auth.admin.listUsers();
       if (findError) throw findError;
       
       const existingUser = users.users.find(u => u.user_metadata?.strava_id === athlete.id);
 
       if (existingUser) {
-        console.log(`[auth-strava] Found existing Supabase user ${existingUser.id} for Strava user ${athlete.id}`);
+        console.log(`[auth-strava] Found existing Supabase user: ${existingUser.id}`);
         supabaseUser = existingUser;
       } else {
-        console.log(`[auth-strava] No existing user found. Creating new Supabase user for Strava user ${athlete.id}`);
-        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email: athlete.email || `${athlete.id}@strava.local`, // Use a placeholder if email is null
+        console.log(`[auth-strava] No existing user found. Creating new Supabase user...`);
+        const { data: newUserResponse, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email: athlete.email || `${athlete.id}@strava.local`,
           email_confirm: true,
           user_metadata: {
             name: `${athlete.firstname || ''} ${athlete.lastname || ''}`.trim(),
@@ -105,13 +105,16 @@ exports.handler = async (event, context) => {
           },
         });
         if (createError) throw createError;
-        supabaseUser = newUser;
-        console.log(`[auth-strava] Created new Supabase user ${supabaseUser.id}`);
+        
+        // FIX: Correctly access the nested user object from the response
+        supabaseUser = newUserResponse.user; 
+        
+        console.log(`[auth-strava] Created new Supabase user: ${supabaseUser.id}`);
       }
 
       const supabaseUid = supabaseUser.id;
       
-      console.log(`[auth-strava] Storing/updating Strava tokens for ${supabaseUid}...`);
+      console.log(`[auth-strava] Step 3: Storing/updating Strava tokens for Supabase user ${supabaseUid}...`);
       const { error: upsertTokenError } = await supabaseAdmin
         .from('user_tokens')
         .upsert({
@@ -126,17 +129,17 @@ exports.handler = async (event, context) => {
 
       if (upsertTokenError) throw upsertTokenError;
 
-      console.log(`[auth-strava] Generating session token for ${supabaseUid}...`);
-      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
+      console.log(`[auth-strava] Step 4: Generating session token for ${supabaseUid}...`);
+      const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink",
         email: supabaseUser.email,
       });
 
-      if (sessionError || !sessionData?.properties?.access_token) {
+      if (tokenError || !tokenData?.properties?.access_token) {
         throw new Error('Failed to generate Supabase session token.');
       }
       
-      const supabaseAccessToken = sessionData.properties.access_token;
+      const supabaseAccessToken = tokenData.properties.access_token;
       
       const tokenPayload = { 
         sub: supabaseUid,
@@ -146,6 +149,7 @@ exports.handler = async (event, context) => {
       };
       const sessionToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1h' });
 
+      console.log(`[auth-strava] Step 5: Setting secure cookie and redirecting...`);
       const sessionCookie = cookie.serialize('sb-session', sessionToken, {
         httpOnly: true,
         secure: NODE_ENV === 'production',
