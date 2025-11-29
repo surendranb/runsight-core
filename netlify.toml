@@ -39,7 +39,8 @@
       "script-src 'self' https://*.netlify.app 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
-      "connect-src 'self' /.netlify/functions/* https://*.supabase.co https://*.supabase.io https://api.strava.com https://*.strava.com",
+      # FIX: Removed invalid host /.netlify/functions/* from connect-src
+      "connect-src 'self' https://*.netlify.app https://*.supabase.co https://*.supabase.io https://api.strava.com https://*.strava.com", 
       "font-src 'self' https: data:",
       "object-src 'none'",
       "base-uri 'self'",
