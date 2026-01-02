@@ -74,16 +74,9 @@ exports.handler = async (event, context) => {
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY; // Use service key for admin operations
     
-    // Pass the authenticated user's JWT to the Supabase client
-    // This allows RLS policies to correctly filter data based on auth.uid()
-    // Even though we're using the service_key, passing the JWT makes it act as the authenticated user.
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${decodedToken.supabase_access_token}`
-        }
-      }
-    });
+    // Create Supabase client with service key for admin operations
+    // We'll use the user_id from the JWT to filter data manually since we're using service key
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get all runs from the runs table, filtered by the authenticated user's ID
     const { data: runs, error: runsError } = await supabase
