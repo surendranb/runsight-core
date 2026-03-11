@@ -30,6 +30,8 @@ export interface PRAnalysis {
   };
 }
 
+export const ALL_DISTANCES = 'all';
+
 // Standard race distances in meters
 const STANDARD_DISTANCES = [
   { name: '1K', meters: 1000, tolerance: 50 },
@@ -217,6 +219,36 @@ const analyzePRConditions = (prs: PersonalRecord[]) => {
     bestLocations,
     temperatureRange
   };
+};
+
+export const filterPRAnalysisByDistance = (
+  analysis: PRAnalysis,
+  selectedDistance: string
+): PRAnalysis => {
+  if (selectedDistance === ALL_DISTANCES) {
+    return analysis;
+  }
+
+  const personalRecords = analysis.personalRecords.filter((pr) => pr.distance === selectedDistance);
+  const recentPRs = analysis.recentPRs.filter((pr) => pr.distance === selectedDistance);
+  const prProgression = analysis.prProgression.filter((progression) => progression.distance === selectedDistance);
+
+  return {
+    personalRecords,
+    recentPRs,
+    prProgression,
+    prsByConditions: analyzePRConditions(personalRecords)
+  };
+};
+
+export const getCurrentPersonalRecord = (personalRecords: PersonalRecord[]): PersonalRecord | null => {
+  if (personalRecords.length === 0) {
+    return null;
+  }
+
+  return personalRecords.reduce((bestRecord, currentRecord) =>
+    currentRecord.time < bestRecord.time ? currentRecord : bestRecord
+  );
 };
 
 export const formatTime = (seconds: number): string => {
