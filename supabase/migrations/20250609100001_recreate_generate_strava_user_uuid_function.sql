@@ -1,0 +1,2 @@
+-- Historical no-op.
+-- RunSight Web no longer depends on deterministic Supabase auth UUIDs.

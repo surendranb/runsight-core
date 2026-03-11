@@ -1,0 +1,2 @@
+-- Historical no-op.
+-- Geocoding columns are part of the base schema in 20250609100000_fresh_start_simple_schema.sql.
