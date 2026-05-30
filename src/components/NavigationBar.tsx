@@ -1,10 +1,10 @@
 // src/components/NavigationBar.tsx
 import React, { useState } from 'react';
-import { Menu, X, Activity, BarChart3, Target, Settings as SettingsIcon, RefreshCw, HelpCircle, Zap, Calendar as CalendarIcon } from 'lucide-react';
+import { Menu, X, Activity, BarChart3, Target, Settings as SettingsIcon, RefreshCw, HelpCircle, Zap, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { StandardDropdown } from './common/StandardButton';
 import { Heading } from './common/VisualHierarchy';
 
-type View = 'dashboard' | 'insights' | 'advanced' | 'yearReview' | string;
+type View = 'dashboard' | 'insights' | 'advanced' | 'yearReview' | 'coach' | string;
 
 // Update SyncPeriod type to include specific string literals
 export type SyncPeriod = "14days" | "30days" | "60days" | "90days" | "thisYear" | "lastYear" | "allTime" | "custom";
@@ -90,6 +90,12 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
       label: "Advanced",
       viewName: "advanced", 
       icon: Zap, 
+      isDisabled: false
+    },
+    {
+      label: "AI Coach",
+      viewName: "coach",
+      icon: Sparkles,
       isDisabled: false
     }
   ];

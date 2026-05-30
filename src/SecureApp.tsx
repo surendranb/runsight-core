@@ -9,6 +9,7 @@ import { ModernDashboard } from './components/ModernDashboard';
 import { InsightsPage } from './components/InsightsPage';
 import { YearInReviewPage } from './components/YearInReviewPage';
 import { AdvancedPage } from './components/AdvancedPage';
+import { CoachPage } from './components/CoachPage';
 import { formatRunDate } from './lib/dateUtils';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { ToastProvider, useToast } from './components/common/ErrorToast';
@@ -17,7 +18,7 @@ import { apiClient } from './lib/secure-api-client';
 import { productionErrorHandler } from './lib/production-error-handler';
 
 // View type consistent with NavigationBar and App.tsx's previous definition
-type View = 'dashboard' | 'insights' | 'advanced' | 'yearReview' | 'welcome' | 'callback' | 'loading';
+type View = 'dashboard' | 'insights' | 'advanced' | 'yearReview' | 'coach' | 'welcome' | 'callback' | 'loading';
 
 const SecureApp: React.FC = () => {
   const {
@@ -326,6 +327,12 @@ const getTimestamps = (period: SyncPeriod, customRange?: { start: string, end: s
             runs={runs}
             isLoading={dataLoading}
             error={dataError}
+          />
+        )}
+        {currentView === 'coach' && (
+          <CoachPage
+            user={user}
+            runs={runs}
           />
         )}
       </div>
