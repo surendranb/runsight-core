@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     // Format runs for the prompt
     // Just take the last 30 runs to avoid context length limits
