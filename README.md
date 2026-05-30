@@ -5,126 +5,66 @@
 
 RunSight Core is the public, self-hostable release of RunSight: a Strava analytics app for runners who want more signal than the free Strava plan gives them.
 
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/surendranb/runsight-core)
+
 It is built for one person to run on their own stack:
-- Netlify for hosting and serverless functions
-- Supabase for storage
-- Strava for auth and activity data
-- OpenWeather for weather enrichment
+- **Netlify** for hosting and serverless functions
+- **Supabase** for secure storage
+- **Strava** for authentication and activity data
 
 Your data stays in your own deployment. There is no shared SaaS backend.
 
 ## What You Get
 
 RunSight Core ships the full self-hosted analytics experience:
-- `Overview`: current status, recent change, and what needs attention next
-- `Insights`: patterns in pace, training, and environment
-- `Year Review`: retrospective storytelling over a full season or year
-- `Advanced`: deeper diagnostics like training load, pacing, predictions, and physiology-backed analysis
-- secure setup, login, and Strava sync flow
+- **Overview**: Current status, recent changes, and what needs attention next.
+- **Insights**: Patterns in pace, training, and environment.
+- **Year Review**: Retrospective storytelling over a full season or year.
+- **Advanced**: Deeper diagnostics like training load, pacing, predictions, and physiology-backed analysis.
+- **AI Coach**: Personalized coaching insights powered by Google Gemini (Optional).
 
-## Step-By-Step Setup
+---
 
-### 1. Clone the repo
+## ⚡️ One-Click Deploy Setup
 
-```bash
-git clone https://github.com/YOUR_USERNAME/runsight-core.git
-cd runsight-core
-npm install
-```
+Follow these exact steps to get your own instance running in minutes.
 
-Optional local checks:
-
-```bash
-npm run lint
-npm run test:run
-npm run build
-```
-
-### 2. Create a Supabase project
-
-1. Create a new Supabase project.
-2. Open the SQL Editor.
-3. Run the SQL files in `supabase/migrations/` in filename order.
-4. Copy these values from Supabase:
+### 1. Database Setup (Supabase)
+1. Go to [Supabase](https://supabase.com/) and create a new project.
+2. In your new project, open the **SQL Editor**.
+3. Copy the contents of `supabase/migrations/20250609100000_fresh_start_simple_schema.sql` (from this repository) and run it.
+4. Run `supabase/migrations/20250609110000_add_proper_rls_security.sql`.
+5. Go to **Project Settings -> API** and copy:
    - `Project URL`
-   - `Service role key`
+   - `Service Role Key` (Keep this secret!)
 
-A healthy install should include these private tables:
-- `runs`
-- `user_tokens`
-- `user_training_profiles`
+### 2. Strava API Setup
+1. Go to [Strava API Settings](https://www.strava.com/settings/api).
+2. Create an application (or update an existing one).
+3. Set **Authorization Callback Domain** to `your-site-name.netlify.app` (You can update this after Netlify creates your site name).
+4. Copy the `Client ID` and `Client Secret`.
 
-### 3. Import the repo into Netlify
+### 3. Deploy to Netlify
+1. Click the **Deploy to Netlify** button at the top of this README.
+2. Connect your GitHub account and authorize Netlify.
+3. During setup, Netlify will prompt you for Environment Variables. Fill them in:
+   - `STRAVA_CLIENT_ID`: (from Step 2)
+   - `STRAVA_CLIENT_SECRET`: (from Step 2)
+   - `STRAVA_REDIRECT_URI`: `https://your-site-name.netlify.app/auth/callback` (Make sure to update this with your actual Netlify URL once deployed)
+   - `SUPABASE_URL`: (from Step 1)
+   - `SUPABASE_SERVICE_KEY`: (from Step 1)
+   - `SESSION_SECRET`: (A long, random string, e.g., generated via a password manager)
+   - `GEMINI_API_KEY`: (Optional, for AI Coaching features)
 
-In Netlify, import your GitHub repo with these settings:
-- Build command: `npm run build`
-- Publish directory: `dist`
-- Node version: `18`
+4. Click **Save & Deploy**.
 
-Deploy once before adding Strava credentials. You need the final site URL first.
+### 4. Final Verification
+1. Once deployed, note your final Netlify URL (e.g. `https://my-runsight-clone.netlify.app`).
+2. Go back to Strava and ensure the **Authorization Callback Domain** exactly matches your Netlify domain (`my-runsight-clone.netlify.app`).
+3. Update your `STRAVA_REDIRECT_URI` environment variable in Netlify Site Settings to match the final URL.
+4. Open your site, click **Connect with Strava**, and start analyzing your runs!
 
-### 4. Grab the final Netlify URL
-
-After the first deploy, note your final site URL, for example:
-
-```text
-https://your-site-name.netlify.app
-```
-
-You will use this exact domain in both Strava and Netlify configuration.
-
-### 5. Create or update your Strava app
-
-Go to [developers.strava.com](https://developers.strava.com) and create or update your app.
-
-Use:
-- Website: `https://your-site-name.netlify.app`
-- Authorization Callback Domain: `your-site-name.netlify.app`
-
-Then copy:
-- `Client ID`
-- `Client Secret`
-
-Important:
-- the callback domain is the domain only, without `https://`
-- the Netlify env var uses the full callback URL with `/auth/callback`
-
-### 6. Add the Netlify environment variables
-
-```bash
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REDIRECT_URI=https://your-site-name.netlify.app/auth/callback
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your_supabase_service_role_key
-OPENWEATHER_API_KEY=your_openweather_api_key
-SESSION_SECRET=long_random_string
-```
-
-Notes:
-- `STRAVA_REDIRECT_URI` must end with `/auth/callback`
-- the app does not require any `VITE_*` variables for production
-- `SESSION_SECRET` is strongly recommended
-
-### 7. Trigger a fresh deploy
-
-After adding the environment variables:
-1. trigger a new Netlify deploy
-2. wait for it to finish
-3. open the live site
-
-### 8. Log in and sync your data
-
-The supported first-run flow is:
-1. open the site
-2. click `Connect with Strava`
-3. complete Strava OAuth
-4. return to `/auth/callback`
-5. land on the dashboard
-6. run a sync
-7. verify your analytics load
-
-If login succeeds but you are redirected to the wrong URL, your Strava callback configuration is still wrong.
+---
 
 ## Repository Model
 
@@ -134,46 +74,31 @@ RunSight uses three repository roles:
 - `runsight-lite`: the demo channel
 
 This repo is intentionally clean and public-facing. Curated releases are published here after they have already been validated in the primary development channel.
-
 The detailed repo contract is in [`docs/REPOSITORY_MODEL.md`](docs/REPOSITORY_MODEL.md).
 
 ## Local Development
 
+To run this locally, clone the repo and run:
 ```bash
+npm install
 npm run dev
 ```
 
 Useful commands:
-
 ```bash
 npm run lint
 npm run test:run
 npm run build
 npm run check-env
-npm run setup
 ```
 
 ## Security Model
-
-- browser code does not talk directly to private Supabase tables
-- Netlify functions use the Supabase service role server-side
-- the app uses signed HTTP-only sessions after Strava login
-- production secrets stay in Netlify environment variables
-
-## More Documentation
-
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
-- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
-- [`SECURITY.md`](SECURITY.md)
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Browser code does not talk directly to private Supabase tables.
+- Netlify functions use the Supabase service role server-side.
+- The app uses signed HTTP-only sessions after Strava login.
+- Production secrets stay safely in Netlify environment variables.
 
 ## License
 
 RunSight Core is distributed under the PolyForm Noncommercial 1.0.0 license.
-
-That means:
-- you can use, study, modify, and self-host the code for noncommercial purposes
-- you cannot sell the code or derivative commercial offerings under this license
-- this repository is source-available, not OSI open source
-
 See [`LICENSE`](LICENSE) for the full terms.
