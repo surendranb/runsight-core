@@ -34,5 +34,5 @@ export default {
       'no-touch': {'raw': '(hover: hover) and (pointer: fine)'},
     },
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/typography')],
 };

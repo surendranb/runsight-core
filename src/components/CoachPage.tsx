@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { User, EnrichedRun } from '../types';
 
 interface CoachPageProps {
@@ -77,12 +78,8 @@ export const CoachPage: React.FC<CoachPageProps> = ({ user, runs }) => {
         )}
 
         {analysis && !loading && (
-          <div className="prose prose-purple max-w-none">
-            {analysis.split('\n').map((line, i) => (
-              <p key={i} className="mb-2">
-                {line.startsWith('**') && line.endsWith('**') ? <strong>{line.replace(/\*\*/g, '')}</strong> : line}
-              </p>
-            ))}
+          <div className="prose prose-purple max-w-none prose-p:leading-relaxed prose-headings:text-purple-900 prose-strong:text-purple-700">
+            <ReactMarkdown>{analysis}</ReactMarkdown>
             <div className="mt-8 text-center">
               <button
                 onClick={handleGetCoaching}
