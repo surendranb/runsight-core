@@ -10,12 +10,12 @@
 
 ## 🚀 Why RunSight?
 
-RunSight is for runners who want deeper insight than the free Strava plan provides, without paying a recurring SaaS subscription or giving up control of their data.
+RunSight is a fun exploration project that allows you to extend on top of Strava. It is not a competing product, but rather a self-hosted playground for runners who love data and want to build their own custom insights using Strava's API.
 
 - 🔒 **100% Private & Self-Hosted:** Run your own private dashboard. Your runs stay yours.
-- 🏃 **Advanced Analytics:** Discover trends like Pace vs. Heart Rate, long-term consistency, and Year-in-Review stats that Strava hides behind a paywall.
+- 🏃 **Advanced Analytics:** Discover custom trends like Pace vs. Heart Rate, long-term consistency, and personalized Year-in-Review stats.
 - 🌤️ **Weather Enrichment:** Automatically pulls historical weather data for your runs so you can finally prove that the heat is slowing you down.
-- 💸 **Zero Recurring Fees:** Built to run on the generous free tiers of Netlify and Supabase.
+- 🛠️ **Hackable & Free:** Built to run on the generous free tiers of Netlify and Supabase, so you can easily extend it with your own features.
 
 > **Want to see it in action?** Check out the [Live Demo](https://runsight.netlify.app)! *(No login required, powered by mock data)*
 
