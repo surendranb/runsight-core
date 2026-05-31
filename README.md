@@ -44,7 +44,7 @@ Deploying your own instance of RunSight is simple. You don't need to be a develo
 2. **Set up the Database:** 
    - Create a free [Supabase](https://supabase.com) project.
    - **Why?** RunSight needs a database to store your synced Strava runs securely. By default, a new Supabase project is completely empty.
-   - **How?** Open your Supabase Dashboard, go to the **SQL Editor** tab, paste the contents of the files in `supabase/migrations/` (in numbered order), and click "Run". This creates the required `runs` tables and security policies. If you skip this, the app won't be able to save your data!
+   - **How?** Open your Supabase Dashboard, go to the **SQL Editor** tab, paste the contents of `supabase/migrations/00-initial-schema.sql`, and click "Run". This creates the required tables and security policies. If you skip this, the app won't be able to save your data!
 3. **Deploy the App:** Import your repo into [Netlify](https://netlify.com).
    - Build command: `npm run build`
    - Publish directory: `dist`

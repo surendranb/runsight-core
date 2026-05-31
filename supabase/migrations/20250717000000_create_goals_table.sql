@@ -1,2 +1,0 @@
--- Historical no-op.
--- Goals are not part of the supported v1 release surface for RunSight Web.

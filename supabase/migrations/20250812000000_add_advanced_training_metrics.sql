@@ -1,3 +1,0 @@
--- Historical no-op.
--- Advanced metrics are calculated in application code and stored on public.runs. The
--- unsupported training-load summary tables and RPCs are not part of the supported v1 schema.
