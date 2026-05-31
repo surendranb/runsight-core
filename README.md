@@ -1,77 +1,49 @@
-# RunSight Web
+<div align="center">
+  <h1>🏃 RunSight</h1>
+  <p><b>Your Data. Your Rules. The ultimate self-hosted Strava analytics dashboard.</b></p>
+</div>
 
-RunSight Web is a self-hosted Strava analytics app for runners who want deeper insight than the free Strava plan provides.
+<p align="center">
+  <img alt="License" src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue.svg">
+  <img alt="Self Hosted" src="https://img.shields.io/badge/Self--Hosted-Netlify%20%2B%20Supabase-brightgreen.svg">
+</p>
 
-The target user is simple:
-- already uses Strava
-- wants better analytics
-- can deploy a small app once on Netlify
-- wants to keep full control of code, hosting, and data
+## 🚀 Why RunSight?
 
-## Product Contract
+RunSight is for runners who want deeper insight than the free Strava plan provides, without paying a recurring SaaS subscription or giving up control of their data.
 
-RunSight Web is not a multi-tenant SaaS product.
+- 🔒 **100% Private & Self-Hosted:** Run your own private dashboard. Your runs stay yours.
+- 🏃 **Advanced Analytics:** Discover trends like Pace vs. Heart Rate, long-term consistency, and Year-in-Review stats that Strava hides behind a paywall.
+- 🌤️ **Weather Enrichment:** Automatically pulls historical weather data for your runs so you can finally prove that the heat is slowing you down.
+- 💸 **Zero Recurring Fees:** Built to run on the generous free tiers of Netlify and Supabase.
 
-Each deployment is owned by one user and runs on that user's:
-- Netlify site
-- Supabase project
-- Strava app
+> **Want to see it in action?** Check out the [Live Demo](https://runsight.netlify.app)! *(No login required, powered by mock data)*
 
-The supported v1 stack is:
-- Netlify for hosting and serverless functions
-- Supabase for storage
-- Strava for authentication and activity data
-- OpenWeather for weather enrichment
+## ✨ What You Get
 
-The production app does not require any browser-side environment variables.
-Secrets stay in Netlify function environment variables.
+- **A Beautiful Dashboard:** A modern, mobile-optimized view of your running journey.
+- **Deep Insights:** Spot outliers in your training, track your consistency, and map out your longest efforts.
+- **Historical Weather Data:** Automatic enrichment mapping temperature and conditions to your runs.
+- **Year in Review:** Beautifully visualized annual recaps.
 
-## Repository Model
+## ⚡ 15-Minute Quick Start
 
-RunSight is intentionally split into three roles:
-- `runsight-web` is the primary development and production-validation repo
-- `runsight-core` is the public distribution repo that receives curated syncs from `runsight-web`
-- `runsight-lite` is the demo repo and should stay demo-specific and no-login
+Deploying your own instance of RunSight is simple. You don't need to be a developer—you just need to copy a few API keys!
 
-Working rules:
-- all product work starts in `runsight-web`
-- `runsight-core` does not grow product logic independently
-- `runsight-lite` only carries demo-specific differences
-- syncs from `runsight-web` downstream are deliberate and documented
+1. **Fork or clone this repository.**
+2. **Set up the Database:** Create a free [Supabase](https://supabase.com) project and run the SQL files in `supabase/migrations/` (in numbered order).
+3. **Deploy the App:** Import your repo into [Netlify](https://netlify.com).
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+4. **Connect Strava:** Grab your final Netlify URL and create an API application in your Strava settings.
+5. **Add Environment Variables:** Add your keys to Netlify (see below).
+6. **Sync:** Open your live site, click "Connect with Strava", and watch your runs populate!
 
-The detailed repo contract is in [`docs/REPOSITORY_MODEL.md`](docs/REPOSITORY_MODEL.md).
+For the detailed, step-by-step walkthrough, check out the **[Full Deployment Guide](docs/DEPLOYMENT.md)**.
 
-## What You Get
+## 🔑 Required Environment Variables
 
-Current release surfaces:
-- dashboard
-- insights
-- year in review
-- advanced analytics
-- setup/login flow
-- Strava sync flow
-
-Not part of the required v1 setup flow:
-- AI features
-- demo-specific behavior
-- placeholder pages
-
-## Quick Start
-
-1. Fork or clone this repository.
-2. Create a Supabase project and run the SQL files in `supabase/migrations/` in filename order.
-3. Import the repo into Netlify with:
-   - build command: `npm run build`
-   - publish directory: `dist`
-4. Let Netlify deploy once so you get your final site URL.
-5. Create or update your Strava app using that Netlify URL.
-6. Add the required environment variables in Netlify.
-7. Trigger a new deploy.
-8. Open the site, connect Strava, and run your first sync.
-
-The full setup guide is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-
-## Required Netlify Environment Variables
+You will need to provide these to your Netlify site settings:
 
 ```bash
 STRAVA_CLIENT_ID=your_strava_client_id
@@ -82,58 +54,23 @@ SUPABASE_SERVICE_KEY=your_supabase_service_role_key
 OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
-Recommended:
+*(Optional but recommended: `SESSION_SECRET=long_random_string` for securing your login sessions)*
 
-```bash
-SESSION_SECRET=long_random_string
-```
+## 🛠️ Built With
 
-Notes:
-- `STRAVA_REDIRECT_URI` must end with `/auth/callback`
-- the Strava app callback domain must match your Netlify domain exactly
-- the app does not require `VITE_*` env vars for production
+- **Frontend:** React, Tailwind CSS, Vite
+- **Backend:** Netlify Functions
+- **Database:** Supabase (PostgreSQL)
+- **APIs:** Strava API, OpenWeatherMap API
 
-## Local Development
+## 📚 For Developers
 
-```bash
-npm install
-npm run dev
-```
+If you're interested in the technical decisions, architecture, and security model of RunSight, please see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Useful commands:
+## 📄 License
 
-```bash
-npm run build
-npm run check-env
-npm run setup
-```
+RunSight is distributed under the **PolyForm Noncommercial 1.0.0** license. 
+- You can use, study, modify, and self-host the code for **noncommercial purposes**.
+- You cannot sell the code or derivative commercial offerings under this license.
 
-## Deployment Notes
-
-The intended user journey is:
-1. clone the repo
-2. deploy to Netlify
-3. grab the final URL
-4. configure Strava with that URL
-5. add Netlify secrets
-6. log in and sync runs
-
-That flow is documented in detail in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and troubleshooting is in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
-
-## Security Model
-
-- browser code does not talk directly to private Supabase tables
-- Netlify functions use the Supabase service role
-- the app uses a signed HTTP-only session cookie after Strava login
-- sensitive runtime config stays in Netlify environment variables
-
-## License
-
-RunSight Web is distributed under the PolyForm Noncommercial 1.0.0 license.
-
-That means:
-- you can use, study, modify, and self-host the code for noncommercial purposes
-- you cannot sell the code or derivative commercial offerings under this license
-- this repository is source-available, not OSI open source
-
-See [`LICENSE`](LICENSE) for the full terms.
+See the [`LICENSE`](LICENSE) file for the full terms.
