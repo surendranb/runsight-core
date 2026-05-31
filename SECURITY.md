@@ -1,27 +1,23 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Security updates are published to the current `main` branch of `runsight-core` after they are validated in the primary development channel.
+Security fixes are applied to the current `main` branch of `runsight-web`.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
 Do not open a public GitHub issue for a security problem.
 
 Use private disclosure instead:
 
-1. Open a private vulnerability report through GitHub if private reporting is enabled.
+1. Open a private vulnerability report through GitHub if private reporting is enabled for the repository.
 2. If private reporting is not available, contact the maintainer directly before sharing details publicly.
 3. Include steps to reproduce, affected routes or functions, expected impact, and any mitigation you already tested.
 
 ## Scope
 
-Report anything that could:
-- expose or corrupt runner data
-- weaken authentication or session handling
-- leak secrets or misconfigure Netlify/Supabase boundaries
-- allow unauthorized access to Netlify functions, Supabase data, or Strava-linked sessions
+Report anything that could expose or corrupt runner data, weaken authentication, leak secrets, or allow unauthorized access to Netlify functions, Supabase data, or Strava-linked sessions.
 
-## Disclosure Expectations
+## Disclosure expectations
 
-Please allow reasonable time to investigate, confirm, patch, and publish the fix before public disclosure.
+Please allow reasonable time to investigate, confirm, and patch the issue before public disclosure.

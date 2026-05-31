@@ -1,61 +1,72 @@
 # RunSight Repository Model
 
-This document explains how the active RunSight repositories work together.
+This document defines how the active RunSight repositories are meant to work together.
 
 ## Roles
 
 ### `runsight-web`
 
-`runsight-web` is the primary development and production-validation channel.
+`runsight-web` is the primary product repository.
 
-It is where maintainers:
-- develop and validate product changes
-- test the real Netlify, Supabase, and Strava contract
-- harden the release before publication
+It is the place where we:
+- develop features and fixes
+- validate the real product on Netlify
+- maintain the live Supabase, auth, and setup contract
+- track issues and release-readiness work in GitHub
+
+If a change affects the real product, it starts here.
 
 ### `runsight-core`
 
 `runsight-core` is the primary public distribution repository.
 
-It exists to publish a reviewed, documented, self-hostable baseline of the app without exposing internal churn or forcing the public repo to carry the full development history.
+It exists to publish a reviewed, documented, releasable baseline of the app without turning the public repo into a second development stream.
+
+It should receive curated syncs from `runsight-web` after:
+- the code has been validated in `runsight-web`
+- setup and deployment docs are accurate
+- sensitive or instance-specific differences are excluded
 
 ### `runsight-lite`
 
 `runsight-lite` is the demo repository.
 
-It is intentionally narrower than the full product:
-- no-login default experience
+It is intentionally narrower than the product:
+- no login as the default experience
 - public demo data only
 - demo-specific messaging and onboarding
 
+It should not grow independent product logic.
+
 ## Working Rules
 
-1. Product work starts in `runsight-web`.
-2. Public releases are published into `runsight-core` as curated snapshots.
-3. Demo-safe changes are published separately into `runsight-lite`.
-4. `runsight-core` should stay public, clean, and distribution-focused.
-5. Public bugs and documentation issues can be reported in `runsight-core` even if maintainers implement the fix in the primary development channel first.
+1. All product development starts in `runsight-web`.
+2. `runsight-core` receives reviewed downstream syncs from `runsight-web`.
+3. `runsight-lite` only receives demo-safe changes.
+4. We do not build features directly in `runsight-core` or `runsight-lite` unless the change is specific to distribution or demo behavior.
+5. GitHub issues for active product work live in `runsight-web`.
 
-## What Belongs In `runsight-core`
+## `web -> core` Sync Scope
 
-A normal public release should include:
-- app UI and analytics logic
+A normal `runsight-web -> runsight-core` sync should include:
+- app UI and UX improvements
+- analytics logic and tests
 - Netlify functions and auth/session hardening
 - Supabase schema and setup contract changes
-- tests, CI, and public-facing docs
-- security and deployment guidance
+- deployment, troubleshooting, and security documentation
 
-A normal public release should exclude:
+A normal sync should exclude:
 - production environment values
 - personal data
 - site-specific URLs or secrets
 - demo-only behavior that belongs in `runsight-lite`
-- temporary or unvalidated experiments
+- temporary experiments that have not been validated
 
 ## Release Flow
 
-1. Build and validate changes in `runsight-web`.
-2. Confirm the live setup, login, sync, and analytics flow there.
-3. Prepare the reviewed public snapshot.
-4. Publish that snapshot into `runsight-core` with a clean public history.
-5. Update `runsight-lite` separately for demo-specific behavior.
+1. Build and validate in `runsight-web`.
+2. Deploy `runsight-web` to Netlify and confirm the live setup/login/sync flow works.
+3. Prepare the reviewed downstream subset for `runsight-core`.
+4. Sync demo-safe behavior separately into `runsight-lite`.
+
+This keeps one development source of truth without losing the public distribution and demo channels.

@@ -8,8 +8,8 @@
 import { EnrichedRun } from '../types';
 
 // Constants for pace outlier detection (in seconds per kilometer)
-const MIN_REALISTIC_PACE = 300;  // 5:00 min/km (fast but realistic)
-const MAX_REALISTIC_PACE = 720;  // 12:00 min/km (slow but realistic)
+const MIN_REALISTIC_PACE = 120;  // 2:00 min/km (very fast, covers world records)
+const MAX_REALISTIC_PACE = 1800; // 30:00 min/km (covers slow walking/hiking)
 
 // Constants for distance outlier detection
 const MIN_REALISTIC_DISTANCE = 100;  // 100 meters (very short, but could be a quick test)

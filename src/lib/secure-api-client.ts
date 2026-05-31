@@ -239,7 +239,7 @@ class SecureApiClient {
         timeRange: syncRequest.timeRange,
         options: syncRequest.options,
         chunkIndex: chunkIndex,
-        chunkSize: 20 // Process 20 runs at a time with full weather enrichment
+        chunkSize: 10 // Process 10 runs at a time to prevent Netlify function timeout (10s limit)
       };
       
       onProgress?.(`🔄 Processing chunk ${chunkIndex + 1}...`, undefined);

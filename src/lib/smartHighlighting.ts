@@ -46,7 +46,7 @@ export class SmartHighlightingEngine {
 
     // Sort runs by date for trend analysis
     const sortedRuns = [...runs].sort((a, b) => 
-      new Date(a.start_date_local).getTime() - new Date(b.start_date_local).getTime()
+      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
     );
 
     // Analyze pace improvements
@@ -117,7 +117,7 @@ export class SmartHighlightingEngine {
       return pace < fastestPace ? run : fastest;
     });
 
-    const fastestRunDate = new Date(fastestRun.start_date_local);
+    const fastestRunDate = new Date(fastestRun.start_date);
     const daysSinceFastest = (Date.now() - fastestRunDate.getTime()) / (1000 * 60 * 60 * 24);
     
     if (daysSinceFastest <= 30) {
@@ -143,11 +143,15 @@ export class SmartHighlightingEngine {
     if (runs.length < 7) return patterns;
 
     // Analyze running frequency over time
-    const last30Days = runs.filter(run => 
-      (Date.now() - new Date(run.start_date_local).getTime()) <= 30 * 24 * 60 * 60 * 1000
+    const sortedRuns = [...runs].sort((a, b) => 
+      new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+
+    const recentRuns = sortedRuns.filter(run => 
+      (Date.now() - new Date(run.start_date).getTime()) <= 30 * 24 * 60 * 60 * 1000
     );
     
-    const runsPerWeek = (last30Days.length / 30) * 7;
+    const runsPerWeek = (recentRuns.length / 30) * 7;
     
     if (runsPerWeek >= 4) {
       patterns.push({
@@ -159,7 +163,7 @@ export class SmartHighlightingEngine {
         importance: 0.7,
         actionable: true,
         recommendation: 'Outstanding consistency! This regular training will build strong fitness gains.',
-        data: { runsPerWeek, totalRuns: last30Days.length }
+        data: { runsPerWeek, totalRuns: recentRuns.length }
       });
     } else if (runsPerWeek < 2) {
       patterns.push({
@@ -171,7 +175,7 @@ export class SmartHighlightingEngine {
         importance: 0.6,
         actionable: true,
         recommendation: 'Try to aim for at least 3 runs per week to see meaningful fitness improvements.',
-        data: { runsPerWeek, totalRuns: last30Days.length }
+        data: { runsPerWeek, totalRuns: recentRuns.length }
       });
     }
 
@@ -204,7 +208,7 @@ export class SmartHighlightingEngine {
       run.distance > longest.distance ? run : longest
     );
 
-    const longestRunDate = new Date(longestRun.start_date_local);
+    const longestRunDate = new Date(longestRun.start_date);
     const daysSinceLongest = (Date.now() - longestRunDate.getTime()) / (1000 * 60 * 60 * 24);
     
     if (daysSinceLongest <= 14) {
@@ -289,7 +293,7 @@ export class SmartHighlightingEngine {
 
     // Analyze weekly patterns
     const runsByDay = runs.reduce((acc, run) => {
-      const day = new Date(run.start_date_local).getDay();
+      const day = new Date(run.start_date).getDay();
       acc[day] = acc[day] || [];
       acc[day].push(run);
       return acc;
@@ -330,7 +334,7 @@ export class SmartHighlightingEngine {
     if (runs.length === 0) return 0;
 
     const sortedRuns = [...runs].sort((a, b) => 
-      new Date(b.start_date_local).getTime() - new Date(a.start_date_local).getTime()
+      new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
     );
 
     let streak = 0;
@@ -338,7 +342,7 @@ export class SmartHighlightingEngine {
     currentDate.setHours(0, 0, 0, 0);
 
     for (const run of sortedRuns) {
-      const runDate = new Date(run.start_date_local);
+      const runDate = new Date(run.start_date);
       runDate.setHours(0, 0, 0, 0);
       
       const daysDiff = Math.floor((currentDate.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));

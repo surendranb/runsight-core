@@ -1,6 +1,6 @@
-# RunSight Core Deployment Guide
+# RunSight Web Deployment Guide
 
-This guide documents the supported deployment flow for a self-hosted RunSight Core instance.
+This guide documents the supported v1 deployment flow for a self-hosted RunSight Web instance.
 
 The intended setup is:
 - one user
@@ -21,8 +21,8 @@ You need:
 ## Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/runsight-core.git
-cd runsight-core
+git clone https://github.com/YOUR_USERNAME/runsight-web.git
+cd runsight-web
 npm install
 ```
 
@@ -45,11 +45,14 @@ At minimum, a working install should end up with these private tables:
 - `user_tokens`
 - `user_training_profiles`
 
+And this demo/public view may also exist:
+- `public_activities_2025`
+
 Then copy these values from Supabase:
 - `Project URL`
 - `Service role key`
 
-RunSight Core does not require direct browser access to private Supabase tables.
+RunSight Web does not require direct browser access to private Supabase tables.
 
 ## Step 3: Import the Repo into Netlify
 
@@ -141,9 +144,9 @@ A healthy deployment should have:
 - successful sync for a small time range
 - dashboard, insights, year review, and advanced views loading on real data
 
-## What Is Not Required
+## What Is Not Required for v1
 
-These are not part of the setup contract:
+These are not required parts of the production setup contract:
 - AI configuration
 - browser-side Supabase env vars
 - demo-mode setup
@@ -167,4 +170,4 @@ These are not part of the setup contract:
 4. Sync fails immediately.
    - Check `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `STRAVA_CLIENT_SECRET`, and Netlify function logs.
 
-For more detailed fixes, see [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+For more detailed fixes, see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).

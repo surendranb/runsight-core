@@ -47,3 +47,6 @@ tmp/
 
 # Test coverage
 coverage/
+
+# Local Netlify folder
+.netlify

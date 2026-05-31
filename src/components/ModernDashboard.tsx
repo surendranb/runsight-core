@@ -105,7 +105,7 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({
     const { startDate, endDate } = getPeriodRange(period, offset);
     return filterOutliers(
       sourceRuns.filter((run) => {
-        const runDate = new Date(run.start_date_local);
+        const runDate = new Date(run.start_date);
         return runDate >= startDate && (!endDate || runDate < endDate);
       })
     );
@@ -137,14 +137,14 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({
     if (filteredRuns.length === 0) return 'No data';
     
     const latestRun = filteredRuns.reduce((latest, run) => 
-      new Date(run.start_date_local) > new Date(latest.start_date_local) ? run : latest
+      new Date(run.start_date) > new Date(latest.start_date) ? run : latest
     );
     
     const now = new Date();
-    const runDate = new Date(latestRun.start_date_local);
+    const runDate = new Date(latestRun.start_date);
     
     // Calculate difference using date strings to avoid timezone issues
-    const runDateStr = latestRun.start_date_local.substring(0, 10); // "2025-08-09"
+    const runDateStr = latestRun.start_date.substring(0, 10); // "2025-08-09"
     const nowDateStr = now.toISOString().substring(0, 10); // "2025-08-11"
     
     const runDateOnly = new Date(runDateStr + 'T00:00:00Z');
@@ -225,7 +225,7 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({
             className="mb-3"
           />
           
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex-1">
               <Heading 
                 level={1} 
@@ -238,7 +238,7 @@ export const ModernDashboard: React.FC<ModernDashboardProps> = ({
                 {filteredRuns.length} runs • {getDataFreshnessIndicator()} • {getPeriodLabel()}
               </p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center">
               <TimePeriodSelector
                 selectedPeriod={selectedPeriod}
                 onPeriodChange={handlePeriodChange}
