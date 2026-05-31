@@ -1,3 +1,5 @@
+import typography from '@tailwindcss/typography';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -34,5 +36,5 @@ export default {
       'no-touch': {'raw': '(hover: hover) and (pointer: fine)'},
     },
   },
-  plugins: [require('@tailwindcss/typography')],
+  plugins: [typography],
 };

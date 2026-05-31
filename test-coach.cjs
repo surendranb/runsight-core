@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { handler } = require('./netlify/functions/ai-coach.js');
 
 async function runTest() {
