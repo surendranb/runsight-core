@@ -8,6 +8,11 @@
   <img alt="Self Hosted" src="https://img.shields.io/badge/Self--Hosted-Netlify%20%2B%20Supabase-brightgreen.svg">
 </p>
 
+<p align="center">
+  <img src="docs/dashboard-desktop.png" alt="RunSight Desktop Dashboard" width="70%">
+  <img src="docs/dashboard-mobile.png" alt="RunSight Mobile Dashboard" width="20%">
+</p>
+
 ## 🚀 Why RunSight?
 
 RunSight is a fun exploration project that allows you to extend on top of Strava. It is not a competing product, but rather a self-hosted playground for runners who love data and want to build their own custom insights using Strava's API.
