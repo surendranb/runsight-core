@@ -1,8 +1,21 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { getSession } = require('./session.cjs');
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
+  const session = getSession(event);
+  if (!session?.stravaUserId) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: 'AUTH_REQUIRED',
+        message: 'Authentication required'
+      })
+    };
   }
 
   try {
